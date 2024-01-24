@@ -19,7 +19,7 @@ typedef struct {
 	
 	// Memory address and data registers for requesting memory accesses
 	uint32_t mem_addr;
-	uint16_t mem_data;
+	uint32_t mem_data;
 	
 	// When reading memory, this flag will be high until the memory access has been completed.
 	// During this time, any reads from mem_data will block until this flag goes low.
@@ -135,8 +135,6 @@ fetch_data_ (pilot_execute_state *state, data_bus_specifier src)
 			return state->sys->core.pgc;
 		case DATA_REG__F:
 			return state->sys->core.wf & 0xff;
-		case DATA_REG__W:
-			return state->sys->core.wf >> 8;
 		case DATA_REG_WF:
 			return state->sys->core.wf;
 		case DATA_LATCH_REPI:
@@ -302,10 +300,6 @@ write_data_ (pilot_execute_state *state, data_bus_specifier dest, uint32_t *src)
 			state->sys->core.wf &= 0xff00;
 			state->sys->core.wf |= *src & 0xff;
 			return;
-		case DATA_REG__W:
-			state->sys->core.wf &= 0x00ff;
-			state->sys->core.wf |= ((*src & 0xff) << 8);
-			return;
 		case DATA_REG_WF:
 			state->sys->core.wf = *src & 0xffff;
 			return;
@@ -388,6 +382,8 @@ execute_half1_mem_prepare_ (pilot_execute_state *state)
 					break;
 				case MEM_WRITE_FROM_MDR:
 					break;
+				case MEM_WRITE_FROM_MDR_HIGH:
+					state->mem_data = (state->mem_data >> 16) & 0xff;
 				default:
 					execute_unreachable_();
 			}
@@ -403,7 +399,7 @@ execute_half1_mem_assert_ (pilot_execute_state *state)
 	{
 		if (state->control->mem_write_ctl == MEM_READ)
 		{
-			if (!Pilot_mem_addr_read_assert(state->sys, state->mem_addr))
+			if (!Pilot_mem_addr_read_assert(state->sys, state->control->is_16bit, state->mem_addr))
 			{
 				return;
 			}
@@ -411,7 +407,7 @@ execute_half1_mem_assert_ (pilot_execute_state *state)
 		}
 		else
 		{
-			if (!Pilot_mem_addr_write_assert(state->sys, state->mem_addr, state->mem_data))
+			if (!Pilot_mem_addr_write_assert(state->sys, state->control->is_16bit, state->mem_addr, state->mem_data & 0xffff))
 			{
 				return;
 			}
@@ -735,6 +731,9 @@ execute_half2_mem_prepare_ (pilot_execute_state *state)
 					break;
 				case MEM_WRITE_FROM_MDR:
 					break;
+				case MEM_WRITE_FROM_MDR_HIGH:
+					state->mem_data = (state->mem_data >> 16) & 0xff;
+					break;
 				default:
 					execute_unreachable_();
 			}
@@ -751,8 +750,7 @@ execute_half2_mem_assert_ (pilot_execute_state *state)
 	{
 		if (state->control->mem_write_ctl == MEM_READ)
 		{
-			if (!Pilot_mem_addr_read_assert(
-				state->sys, state->mem_addr))
+			if (!Pilot_mem_addr_read_assert(state->sys, state->control->is_16bit, state->mem_addr))
 			{
 				return;
 			}
@@ -760,7 +758,7 @@ execute_half2_mem_assert_ (pilot_execute_state *state)
 		}
 		else
 		{
-			if (!Pilot_mem_addr_write_assert(state->sys, state->mem_addr, state->mem_data))
+			if (!Pilot_mem_addr_write_assert(state->sys, state->control->is_16bit, state->mem_addr, state->mem_data & 0xffff))
 			{
 				return;
 			}

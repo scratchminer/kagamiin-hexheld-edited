@@ -370,14 +370,15 @@ decode_inst_ld_group_ (pilot_decode_state *state, uint16_t opcode)
 			// LDSX
 			core_op->srcs[1].sign_extend = TRUE;
 		}
-		if ((opcode & 0xf800) == 0x9800)
+		if ((opcode & 0xf000) == 0x9000)
 		{
-			// LEA with pre-decrement (uses the RM decoder to handle the auto-index)
-			rm_spec dummy_rm = (opcode & 0x0f80) >> 12;
+			// LEA (uses the RM decoder to handle the auto-index)
+			rm_spec dummy_rm = (opcode & 0x0f80) >> 7;
 			decode_rm_specifier(state, dummy_rm, TRUE, FALSE, size);
+			core_op->mem_access_suppress = TRUE;
 		}
 		
-		// if LEA @-r24, this will technically be treated as the second RM operand, but that operand is never used
+		// if LEA, this will technically be treated as the second RM operand, but that operand is never used
 		decode_rm_specifier(state, rm_src, FALSE, FALSE, size);
 		
 		return;

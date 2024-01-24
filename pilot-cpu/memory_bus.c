@@ -46,7 +46,49 @@ mem_read (Pilot_system *sys)
 	}
 	else if (addr <= HRAM_END)
 	{
-		sys->memctl.data_reg_in = sys->hram[addr] | (sys->hram[addr + 1] << 8);
+		sys->memctl.data_reg_in = sys->hram[addr] | (sys->memctl.is_16bit ? (sys->hram[addr + 1] << 8) : 0);
+		return TRUE;
+	}
+	
+	return FALSE;
+}
+
+bool
+mem_write (Pilot_system *sys)
+{
+	uint32_t addr = sys->memctl.addr_reg;
+	if (addr <= WRAM_END)
+	{
+		// try to read WRAM
+	}
+	else if (addr <= VRAM_END)
+	{
+		// try to read VRAM
+	}
+	else if (addr <= CART_CS2_END)
+	{
+		// call cartridge chip select mapper
+	}
+	else if (addr <= CART_ROM_END)
+	{
+		// call cartridge mapper
+	}
+	else if (addr <= TMRAM_END)
+	{
+		// tilemap RAM
+	}
+	else if (addr <= OAM_END)
+	{
+		// sprite attribute RAM
+	}
+	else if (HCIO_START <= addr && addr <= HCIO_END)
+	{
+		// memory mapped I/O
+	}
+	else if (addr <= HRAM_END)
+	{
+		sys->hram[addr] = sys->memctl.data_reg_out & 0xff;
+		if (sys->memctl.is_16bit) sys->hram[addr + 1] = sys->memctl.data_reg_out >> 8;
 		return TRUE;
 	}
 	
@@ -66,29 +108,29 @@ mem_read (Pilot_system *sys)
  * 
  */
 Pilot_memctl_state
-Pilot_mem_addr_read_assert (Pilot_system *sys, uint32_t addr)
+Pilot_mem_addr_read_assert (Pilot_system *sys, bool is_16bit, uint32_t addr)
 {
 	if (sys->memctl.state == MCTL_READY)
 	{
 		sys->memctl.addr_reg = addr;
+		sys->memctl.is_16bit = is_16bit;
 		sys->memctl.state = MCTL_MEM_R_BUSY;
-		return MCTL_READY;
 	}
 
 	return sys->memctl.state;
 }
 
 Pilot_memctl_state
-Pilot_mem_addr_write_assert (Pilot_system *sys, uint32_t addr, uint16_t data)
+Pilot_mem_addr_write_assert (Pilot_system *sys, bool is_16bit, uint32_t addr, uint16_t data)
 {
 	if (sys->memctl.state == MCTL_READY)
 	{
 		sys->memctl.addr_reg = addr;
 		sys->memctl.data_reg_out = data;
+		sys->memctl.is_16bit = is_16bit;
 		sys->memctl.state = MCTL_MEM_W_BUSY;
-		return MCTL_READY;
 	}
-
+	
 	return sys->memctl.state;
 }
 
@@ -99,7 +141,7 @@ Pilot_mem_data_wait (Pilot_system *sys)
 	{
 		return TRUE;
 	}
-
+	
 	return FALSE;
 }
 
@@ -108,6 +150,11 @@ Pilot_memctl_tick (Pilot_system *sys)
 {
 	sys->memctl.data_valid = FALSE;
 	if (sys->memctl.state == MCTL_MEM_R_BUSY && mem_read(sys))
+	{
+		sys->memctl.state = MCTL_READY;
+		sys->memctl.data_valid = TRUE;
+	}
+	if (sys->memctl.state == MCTL_MEM_W_BUSY && mem_write(sys))
 	{
 		sys->memctl.state = MCTL_READY;
 		sys->memctl.data_valid = TRUE;

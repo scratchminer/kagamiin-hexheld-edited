@@ -50,7 +50,7 @@ decode_rm_specifier (pilot_decode_state *state, rm_spec rm, bool is_dest, bool s
 			core_op->dest = DATA_LATCH_MEM_DATA;
 			core_op->mem_latch_ctl = MEM_LATCH_HALF2_MAR;
 			core_op->mem_write_ctl = MEM_WRITE_FROM_DEST;
-			core_op->mem_size = size;
+			core_op->is_16bit = (size >= SIZE_16_BIT);
 		}
 		else if (is_dest)
 		{
@@ -64,6 +64,7 @@ decode_rm_specifier (pilot_decode_state *state, rm_spec rm, bool is_dest, bool s
 		}
 		
 		run_mucode->is_write = is_dest;
+		run_mucode->mem_access_suppress = core_op->mem_access_suppress;
 	}
 	
 	if (src_affected && ((rm & 0x03) == 0x03))
@@ -118,7 +119,7 @@ decode_rm_specifier (pilot_decode_state *state, rm_spec rm, bool is_dest, bool s
 	{
 		// Absolute
 		run_mucode->size = !(rm & 0x04) ? SIZE_16_BIT : SIZE_24_BIT;
-		run_mucode->reg_select = !(rm & 0x04) ? 8 : 0;
+		run_mucode->reg_select = !(rm & 0x04) ? 0x8 : 0;
 	}
 	else if (src_affected && ((rm & 0x3b) == 0x21))
 	{
@@ -155,6 +156,18 @@ decode_rm_specifier (pilot_decode_state *state, rm_spec rm, bool is_dest, bool s
 	if (state->rm_ops == 2)
 	{
 		run_mucode->reg_select |= 0x10;
+	}
+	
+	if (size == SIZE_24_BIT)
+	{
+		run_mucode->next = (mucode_entry_spec)
+		{
+			MU_IND_MAR_AUTO,
+			run_mucode->reg_select,
+			!(run_mucode->is_write) ? SIZE_8_BIT : SIZE_16_BIT,
+			run_mucode->is_write,
+			core_op->mem_access_suppress
+		};
 	}
 	
 	return;

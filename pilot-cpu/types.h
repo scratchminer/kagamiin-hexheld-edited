@@ -18,7 +18,6 @@ typedef enum
 	REG8_M2,
 	REG8_M3,
 	
-	REG8_W,
 	REG8_F
 } reg8_spec;
 
@@ -113,6 +112,9 @@ typedef enum
 	MU_IND_PGC_WITH_HML,
 	MU_IND_PGC_WITH_HML_RM,
 	
+	// used for 24-bit accesses
+	MU_IND_MAR_AUTO,
+	
 	// post-increment
 	MU_POST_AUTOIDX
 } mucode_entry_idx;
@@ -125,6 +127,7 @@ typedef struct
 	uint8_t reg_select;
 	data_size_spec size;
 	bool is_write;
+	bool mem_access_suppress;
 } mucode_entry_spec;
 
 typedef enum
@@ -145,7 +148,6 @@ typedef enum
 	DATA_REG_M2,
 	DATA_REG_M3,
 	DATA_REG__F,
-	DATA_REG__W,
 	
 	// 16-bit registers
 	DATA_REG_W0,
@@ -281,12 +283,15 @@ typedef struct
 		MEM_WRITE_FROM_SRC1,
 		// Data is latched from ALU dest
 		MEM_WRITE_FROM_DEST,
-		// Data is not latched; whatever was left in MDR is what's written back
+		// Data is not latched; whatever was left in the lower 16 bits of MDR is what's written back
 		MEM_WRITE_FROM_MDR,
+		// Data is not latched; whatever was left in the upper 8 bits of MDR is what's written back
+		// (this destroys the lower 16 bits of MDR but that shouldn't matter)
+		MEM_WRITE_FROM_MDR_HIGH,
 	} mem_write_ctl;
-
+	
 	// The Pilot has a 24-bit internal data bus, but this is reduced by glue logic to 16 bits for any accesses outside the CPU.
-	bool mem_size;
+	bool is_16bit;
 } execute_control_word;
 
 typedef struct
@@ -312,9 +317,6 @@ typedef struct
 	execute_control_word core_op;
 	// run_after: if not MU_NONE, is executed after core_op - usually for memory writes
 	mucode_entry_spec run_after;
-
-	// Register post auto-increment control
-	int8_t auto_incr_amount;
 	
 	// Branch flags
 	bool branch;

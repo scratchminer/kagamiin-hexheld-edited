@@ -5,13 +5,30 @@ static inline mucode_entry
 base_entry_ (mucode_entry_spec spec)
 {
 	mucode_entry prg;
-	prg.next = (mucode_entry_spec)
+	
+	if (spec.size == SIZE_24_BIT)
 	{
-		MU_NONE,
-		spec.reg_select,
-		spec.size,
-		spec.is_write
-	};
+		prg.next = (mucode_entry_spec)
+		{
+			MU_IND_MAR_AUTO,
+			spec.reg_select,
+			!(spec.is_write) ? SIZE_8_BIT : SIZE_16_BIT,
+			spec.is_write,
+			spec.mem_access_suppress
+		};
+	}
+	else
+	{
+		prg.next = (mucode_entry_spec)
+		{
+			MU_NONE,
+			spec.reg_select,
+			spec.size,
+			spec.is_write,
+			spec.mem_access_suppress
+		};
+	}
+	
 	prg.operation.srcs[0].size = SIZE_24_BIT;
 	prg.operation.srcs[0].sign_extend = FALSE;
 
@@ -23,7 +40,7 @@ base_entry_ (mucode_entry_spec spec)
 	prg.operation.dest = DATA_ZERO;
 	
 	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
-	prg.operation.mem_size = spec.size;
+	prg.operation.is_16bit = (spec.size >= SIZE_16_BIT);
 	prg.operation.mem_access_suppress = FALSE;
 	
 	return prg;
@@ -82,7 +99,7 @@ ind_1cyc_reg_ (mucode_entry_spec spec)
 			prg.operation.srcs[0].location = DATA_REG_P0 + (spec.reg_select & 0x7);
 	}
 	
-	prg.operation.mem_latch_ctl = MEM_LATCH_HALF1;
+	prg.operation.mem_latch_ctl = !(spec.mem_access_suppress) ? MEM_LATCH_HALF1 : MEM_NO_LATCH;
 	prg.operation.mem_write_ctl = !(spec.is_write) ? MEM_READ : MEM_WRITE_FROM_MDR;
 	return prg;
 }
@@ -109,8 +126,6 @@ ind_1cyc_reg_auto_ (mucode_entry_spec spec)
 	
 	prg.operation.dest = prg.operation.srcs[0].location;
 	
-	prg.operation.mem_latch_ctl = MEM_LATCH_HALF2;
-	prg.operation.mem_write_ctl = !(spec.is_write) ? MEM_READ : MEM_WRITE_FROM_MDR;
 	return prg;
 }
 
@@ -129,7 +144,6 @@ ind_2cyc_withimm_ (mucode_entry_spec spec)
 	
 	prg.operation.dest = DATA_ZERO;
 	
-	prg.operation.mem_latch_ctl = MEM_LATCH_HALF2;
 	return prg;
 }
 
@@ -147,9 +161,9 @@ ind_2cyc_imm_withbits_ (mucode_entry_spec spec)
 	
 	prg.operation.operation = ALU_ADD;
 	
-	prg.operation.dest = DATA_ZERO;
+	prg.operation.dest = !(spec.mem_access_suppress) ? DATA_ZERO : DATA_LATCH_MEM_DATA;
 	
-	prg.operation.mem_latch_ctl = MEM_LATCH_HALF2;
+	prg.operation.mem_latch_ctl = !(spec.mem_access_suppress) ? MEM_LATCH_HALF2 : MEM_NO_LATCH;
 	return prg;
 }
 
@@ -167,9 +181,9 @@ ind_2cyc_reg_withbits_ (mucode_entry_spec spec)
 	
 	prg.operation.operation = ALU_ADD;
 	
-	prg.operation.dest = DATA_ZERO;
+	prg.operation.dest = !(spec.mem_access_suppress) ? DATA_ZERO : DATA_LATCH_MEM_DATA;
 	
-	prg.operation.mem_latch_ctl = MEM_LATCH_HALF2;
+	prg.operation.mem_latch_ctl = !(spec.mem_access_suppress) ? MEM_LATCH_HALF2 : MEM_NO_LATCH;
 	return prg;
 }
 
@@ -188,9 +202,9 @@ ind_2cyc_pgc_withimm_ (mucode_entry_spec spec)
 	
 	prg.operation.operation = ALU_ADD;
 	
-	prg.operation.dest = DATA_ZERO;
+	prg.operation.dest = !(spec.mem_access_suppress) ? DATA_ZERO : DATA_LATCH_MEM_DATA;
 	
-	prg.operation.mem_latch_ctl = MEM_LATCH_HALF2;
+	prg.operation.mem_latch_ctl = !(spec.mem_access_suppress) ? MEM_LATCH_HALF2 : MEM_NO_LATCH;
 	return prg;
 }
 
@@ -209,9 +223,9 @@ ind_2cyc_pgc_withimm_rm_ (mucode_entry_spec spec)
 	
 	prg.operation.operation = ALU_ADD;
 	
-	prg.operation.dest = DATA_ZERO;
+	prg.operation.dest = !(spec.mem_access_suppress) ? DATA_ZERO : DATA_LATCH_MEM_DATA;
 	
-	prg.operation.mem_latch_ctl = MEM_LATCH_HALF2;
+	prg.operation.mem_latch_ctl = !(spec.mem_access_suppress) ? MEM_LATCH_HALF2 : MEM_NO_LATCH;
 	return prg;
 }
 
@@ -230,9 +244,9 @@ ind_2cyc_pgc_withhml_ (mucode_entry_spec spec)
 	
 	prg.operation.operation = ALU_ADD;
 	
-	prg.operation.dest = DATA_ZERO;
+	prg.operation.dest = !(spec.mem_access_suppress) ? DATA_ZERO : DATA_LATCH_MEM_DATA;
 	
-	prg.operation.mem_latch_ctl = MEM_LATCH_HALF2;
+	prg.operation.mem_latch_ctl = !(spec.mem_access_suppress) ? MEM_LATCH_HALF2 : MEM_NO_LATCH;
 	return prg;
 }
 
@@ -251,9 +265,30 @@ ind_2cyc_pgc_withhml_rm_ (mucode_entry_spec spec)
 	
 	prg.operation.operation = ALU_ADD;
 	
+	prg.operation.dest = !(spec.mem_access_suppress) ? DATA_ZERO : DATA_LATCH_MEM_DATA;
+	
+	prg.operation.mem_latch_ctl = !(spec.mem_access_suppress) ? MEM_LATCH_HALF2 : MEM_NO_LATCH;
+	return prg;
+}
+
+static mucode_entry
+ind_2cyc_mar_auto_ (mucode_entry_spec spec)
+{
+	mucode_entry prg = base_entry_(spec);
+	prg.operation.srcs[0].location = DATA_LATCH_MEM_ADDR;
+	
+	prg.operation.srcs[1].location = DATA_SIZE;
+	prg.operation.srcs[1].size = SIZE_24_BIT;
+	prg.operation.srcs[1].sign_extend = FALSE;
+	
+	prg.operation.src2_add1 = FALSE;
+	prg.operation.src2_negate = FALSE;
+	
+	prg.operation.operation = ALU_ADD;
+	
 	prg.operation.dest = DATA_ZERO;
 	
-	prg.operation.mem_latch_ctl = MEM_LATCH_HALF2;
+	prg.operation.mem_latch_ctl = !(spec.mem_access_suppress) ? (!(spec.is_write) ? MEM_READ : MEM_WRITE_FROM_MDR_HIGH) : MEM_NO_LATCH;
 	return prg;
 }
 
@@ -307,6 +342,8 @@ decode_mucode_entry (mucode_entry_spec spec)
 			return result = ind_2cyc_pgc_withhml_(spec);
 		case MU_IND_PGC_WITH_HML_RM:
 			return result = ind_2cyc_pgc_withhml_rm_(spec);
+		case MU_IND_MAR_AUTO:
+			return result = ind_2cyc_mar_auto_(spec);
 		case MU_POST_AUTOIDX:
 			return result = after_autoidx_(spec);
 		default:
