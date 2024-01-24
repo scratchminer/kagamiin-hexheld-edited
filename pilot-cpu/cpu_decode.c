@@ -148,11 +148,11 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 					return;
 				case 0x0100:
 					// CALL rm24
-					decode_not_implemented();
+					decode_not_implemented_();
 					return;
 				case 0x0140:
 					// CEA
-					decode_not_implemented();
+					decode_not_implemented_();
 					return;
 				default:
 					break;
@@ -167,7 +167,65 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 static void
 decode_inst_bit_ (pilot_decode_state *state, uint16_t opcode)
 {
-	decode_not_implemented_();
+	execute_control_word *core_op = &state->work_regs.core_op;
+	core_op->src2_add1 = FALSE;
+	core_op->src2_add_carry = FALSE;
+	core_op->src2_negate = FALSE;
+	core_op->flag_write_mask = 0;
+	core_op->flag_v_mode = FLAG_V_NORMAL;
+	
+	if ((opcode & 0x0800) == 0x0000)
+	{
+		// BIT, CHG, RES, SET
+		decode_not_implemented_();
+		return;
+	}
+	if ((opcode & 0x0ff8) == 0x0b00)
+	{
+		// LD IRL, imm
+		core_op->dest = DATA_REG_IRL;
+		
+		core_op->srcs[1].location = DATA_LATCH_IMM_0;
+		core_op->srcs[1].size = SIZE_8_BIT;
+		core_op->srcs[1].sign_extend = FALSE;
+		return;
+	}
+	if ((opcode & 0x0c00) == 0x0c00)
+	{
+		core_op->srcs[0].location = DATA_LATCH_IMM_0;
+		core_op->srcs[0].size = SIZE_8_BIT;
+		core_op->srcs[0].sign_extend = FALSE;
+		
+		core_op->srcs[1].location = DATA_REG_F;
+		core_op->srcs[1].size = SIZE_8_BIT;
+		core_op->srcs[1].sign_extend = FALSE;
+		
+		core_op->dest = DATA_REG_F;
+		
+		switch (opcode & 0x0300)
+		{
+			case 0x0000:
+				// AND.B F, imm
+				core_op->operation = ALU_AND;
+				break;
+			case 0x0100:
+				// XOR.B F, imm
+				core_op->operation = ALU_XOR;
+				break;
+			case 0x0200:
+				// OR.B F, imm
+				core_op->operation = ALU_OR;
+				break;
+			case 0x0300:
+				// LD.B F, imm
+				core_op->operation = ALU_OFF;
+				break;
+		}
+		
+		return;
+	}
+	
+	decode_invalid_opcode_(state->sys);
 	return;
 }
 

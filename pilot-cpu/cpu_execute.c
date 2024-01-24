@@ -133,8 +133,10 @@ fetch_data_ (pilot_execute_state *state, data_bus_specifier src)
 			return state->sys->core.regs[7];
 		case DATA_REG_PGC:
 			return state->sys->core.pgc;
-		case DATA_REG__F:
+		case DATA_REG_F:
 			return state->sys->core.wf & 0xff;
+		case DATA_REG_IRL:
+			return (state->sys->core.wf >> 8) & 0x7;
 		case DATA_REG_WF:
 			return state->sys->core.wf;
 		case DATA_LATCH_REPI:
@@ -296,9 +298,13 @@ write_data_ (pilot_execute_state *state, data_bus_specifier dest, uint32_t *src)
 		case DATA_REG_SP:
 			state->sys->core.regs[7] = *src & 0xffffff;
 			return;
-		case DATA_REG__F:
+		case DATA_REG_F:
 			state->sys->core.wf &= 0xff00;
 			state->sys->core.wf |= *src & 0xff;
+			return;
+		case DATA_REG_IRL:
+			state->sys->core.wf &= 0xff;
+			state->sys->core.wf |= (*src << 8) & 0x7;
 			return;
 		case DATA_REG_WF:
 			state->sys->core.wf = *src & 0xffff;
@@ -448,13 +454,13 @@ pilot_execute_half1 (pilot_execute_state *state)
 	}
 }
 
-static inline uint16_t
-alu_operate_shifter_ (pilot_execute_state *state, uint16_t operand)
+static inline uint32_t
+alu_operate_shifter_ (pilot_execute_state *state, uint32_t operand)
 {
 	bool inject_bit;
 	bool msb_bit;
 	bool lsb_bit = operand & 1;
-	bool carry_flag = (fetch_data_(state, DATA_REG__F) & F_CARRY) != 0;
+	bool carry_flag = (fetch_data_(state, DATA_REG_F) & F_CARRY) != 0;
 	
 	if (state->control->srcs[1].size == SIZE_8_BIT)
 	{
@@ -613,7 +619,7 @@ execute_half2_result_latch_ (pilot_execute_state *state)
 	uint32_t carries;
 	
 	alu_src_control *src2 = &state->control->srcs[1];
-	uint8_t flags = fetch_data_(state, DATA_REG__F);
+	uint8_t flags = fetch_data_(state, DATA_REG_F);
 	bool carry_flag_status = (flags & F_CARRY) != 0;
 	for (i = 0; i < 2; i++)
 	{

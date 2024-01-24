@@ -158,17 +158,5 @@ decode_rm_specifier (pilot_decode_state *state, rm_spec rm, bool is_dest, bool s
 		run_mucode->reg_select |= 0x10;
 	}
 	
-	if (size == SIZE_24_BIT)
-	{
-		run_mucode->next = (mucode_entry_spec)
-		{
-			MU_IND_MAR_AUTO,
-			run_mucode->reg_select,
-			!(run_mucode->is_write) ? SIZE_8_BIT : SIZE_16_BIT,
-			run_mucode->is_write,
-			core_op->mem_access_suppress
-		};
-	}
-	
 	return;
 } 

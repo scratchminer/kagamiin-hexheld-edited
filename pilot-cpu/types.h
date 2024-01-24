@@ -147,7 +147,8 @@ typedef enum
 	DATA_REG_M1,
 	DATA_REG_M2,
 	DATA_REG_M3,
-	DATA_REG__F,
+	DATA_REG_F,
+	DATA_REG_IRL,
 	
 	// 16-bit registers
 	DATA_REG_W0,
