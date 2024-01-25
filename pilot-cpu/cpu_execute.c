@@ -344,6 +344,8 @@ write_data_ (pilot_execute_state *state, data_bus_specifier dest, uint32_t *src)
 		case DATA_LATCH_RM_1:
 		case DATA_LATCH_RM_2:
 		case DATA_LATCH_RM_HML:
+		case DATA_DMX_IMM_BITS:
+		case DATA_DMX_P0_BITS:
 			return;
 		default:
 			execute_unreachable_();
@@ -723,6 +725,7 @@ execute_half2_result_latch_ (pilot_execute_state *state)
 	{
 		flags = alu_modify_flags_(state, flags, operands, state->alu_output_latch, carries);
 	}
+	write_data_(state, state->control->dest, &state->alu_output_latch);
 	
 	state->execution_phase = EXEC_HALF2_MEM_PREPARE;
 }

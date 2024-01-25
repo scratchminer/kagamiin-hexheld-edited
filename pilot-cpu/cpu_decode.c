@@ -338,7 +338,7 @@ decode_inst_ld_other_ (pilot_decode_state *state, uint16_t opcode)
 		return;
 	}
 	
-	decode_unreachable_(state);
+	decode_unreachable_();
 	return;
 }
 
@@ -533,7 +533,7 @@ decode_inst_ld_group_ (pilot_decode_state *state, uint16_t opcode)
 		return;
 	}
 	
-	decode_unreachable_(state);
+	decode_unreachable_();
 	return;
 }
 
