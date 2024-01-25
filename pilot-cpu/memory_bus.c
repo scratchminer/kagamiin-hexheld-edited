@@ -101,7 +101,7 @@ mem_write (Pilot_system *sys)
  * Reads:
  * Tick 0: Pilot_mem_addr_read_assert - assert the address to be accessed
  * Tick 1: Pilot_mem_data_wait - wait for the access slot to be conceded
- * Tick 1+n, n >= 0: Pilot_mem_read - read data latch
+ * Tick 1+n, n >= 0: Pilot_mem_get_data - read data latch
  * 
  * Writes:
  * Tick 0: Pilot_mem_addr_write_assert

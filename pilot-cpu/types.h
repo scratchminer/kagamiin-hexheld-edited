@@ -7,71 +7,8 @@ typedef int_fast8_t bool;
 #define TRUE 1
 #define FALSE 0
 
-typedef enum
-{
-	REG8_L0 = 0,
-	REG8_L1,
-	REG8_L2,
-	REG8_L3,
-	REG8_M0,
-	REG8_M1,
-	REG8_M2,
-	REG8_M3,
-	
-	REG8_F
-} reg8_spec;
-
-typedef enum
-{
-	REG16_W0 = 0,
-	REG16_W1,
-	REG16_W2,
-	REG16_W3,
-	REG16_W4,
-	REG16_W5,
-	REG16_W6,
-	REG16_W7,
-	
-	REG16_WF
-} reg16_spec;
-
-typedef enum
-{
-	REG24_P0 = 0,
-	REG24_P1,
-	REG24_P2,
-	REG24_P3,
-	REG24_P4,
-	REG24_P5,
-	REG24_P6,
-	REG24_SP
-} reg24_spec;
-
-typedef enum
-{
-	// RM operands
-	DATA_REG,
-	DATA_IND_REG24_IMM16,
-	DATA_IND_REG24,
-	DATA_IND_IMM16,
-	DATA_IND_IMM24,
-	DATA_IND_PGC24_IMM16,
-	DATA_IND_PGC24_IMM24,
-	
-	// register indexed
-	DATA_IND_REG24_REG8,
-	DATA_IND_REG24_REG8_SX,
-	DATA_IND_REG24_REG16,
-	DATA_IND_REG24_REG16_SX,
-	DATA_IND_REG24_REG24,
-	
-	// absolute indexed
-	DATA_IND_IMM24_REG8,
-	DATA_IND_IMM24_REG8_SX,
-	DATA_IND_IMM24_REG16,
-	DATA_IND_IMM24_REG16_SX,
-	DATA_IND_IMM24_REG24,
-} data_location_spec;
+typedef uint_fast8_t rm_spec;
+#define RM_NULL -1
 
 typedef enum
 {
@@ -79,17 +16,6 @@ typedef enum
 	SIZE_16_BIT,
 	SIZE_24_BIT
 } data_size_spec;
-
-typedef union
-{
-	reg8_spec reg8;
-	reg16_spec reg16;
-	reg24_spec reg24;
-} reg_spec;
-
-typedef uint_fast8_t rm_spec;
-
-#define RM_NULL -1
 
 typedef enum
 {
@@ -229,7 +155,7 @@ typedef struct
 	} operation;
 	
 	// Source transformations (in order)
-  bool src2_add1;
+	bool src2_add1;
 	bool src2_add_carry;
 	bool src2_negate;
 	
@@ -253,7 +179,7 @@ typedef struct
 	enum
 	{
 		FLAG_Z_NORMAL,
-    // this ANDs src2 with src1 and sets the Z flag accordingly
+		// this ANDs src2 with src1 and sets the Z flag accordingly
 		FLAG_Z_BIT_TEST,
 	} flag_z_mode;
 	

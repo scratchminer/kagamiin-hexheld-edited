@@ -15,8 +15,7 @@ typedef struct
 	
 	// Execute branch feedback
 	bool execute_branch;
-	uint8_t execute_branch_k;
-	uint16_t execute_branch_addr;
+	uint32_t execute_branch_addr;
 	
 	// Goes high if the execute unit is going to access memory; tells the fetch unit to pre-emptively back off
 	bool execute_memory_backoff;

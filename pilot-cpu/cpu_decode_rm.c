@@ -82,7 +82,7 @@ decode_rm_specifier (pilot_decode_state *state, rm_spec rm, bool is_dest, bool s
 	else if ((rm & 0x3b) == 0x39)
 	{
 		// Extra word needed
-		decode_try_read_word_(state);
+		decode_queue_read_word(state);
 		
 		if (!(rm & 0x4))
 		{
@@ -93,7 +93,7 @@ decode_rm_specifier (pilot_decode_state *state, rm_spec rm, bool is_dest, bool s
 		else
 		{
 			// Absolute indexed
-			decode_try_read_word_(state);
+			decode_queue_read_word(state);
 			run_mucode->entry_idx = MU_IND_IMM_WITH_BITS;
 			run_mucode->reg_select = 0;
 		}
@@ -101,7 +101,7 @@ decode_rm_specifier (pilot_decode_state *state, rm_spec rm, bool is_dest, bool s
 	else if ((rm & 0x3b) == 0x31)
 	{
 		// PGC relative
-		decode_try_read_word_(state);
+		decode_queue_read_word(state);
 		run_mucode->entry_idx = MU_IND_PGC_WITH_IMM_RM;
 		run_mucode->reg_select = 0;
 		if (!(rm & 0x04))
@@ -112,7 +112,7 @@ decode_rm_specifier (pilot_decode_state *state, rm_spec rm, bool is_dest, bool s
 		else
 		{
 			// unsigned 24-bit
-			decode_try_read_word_(state);
+			decode_queue_read_word(state);
 		}
 	}
 	else if ((rm & 0x3b) == 0x29)
