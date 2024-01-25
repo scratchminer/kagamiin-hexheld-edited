@@ -12,7 +12,7 @@ base_entry_ (mucode_entry_spec spec)
 		{
 			MU_IND_MAR_AUTO,
 			spec.reg_select,
-			!(spec.is_write) ? SIZE_8_BIT : SIZE_16_BIT,
+			SIZE_8_BIT,
 			spec.is_write,
 			spec.mem_access_suppress
 		};

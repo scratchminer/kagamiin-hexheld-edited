@@ -18,7 +18,7 @@ typedef struct
 {
 	Pilot_memctl_state state;
 	bool data_valid;
-        bool is_16bit;
+	bool is_16bit;
 	uint32_t addr_reg;
 	uint16_t data_reg_in;
 	uint16_t data_reg_out;

@@ -197,6 +197,10 @@ fetch_data_ (pilot_execute_state *state, data_bus_specifier src)
 			state->mucode_decoded_buffer.srcs[1].sign_extend = ((state->decoded_inst.imm_words[state->decoded_inst.rm2_offset + 1] & 0x0800) != 0);
 			return ACCESS_REG_BITS_(state, (state->decoded_inst.imm_words[state->decoded_inst.rm2_offset + 1] >> 8) & 0x7, state->decoded_inst.imm_words[state->decoded_inst.rm2_offset + 1] >> 14);
 		}
+		case DATA_DMX_IMM_BITS:
+			return 1 << ((state->decoded_inst.imm_words[0] >> 8) & 0x7);
+		case DATA_DMX_P0_BITS:
+			return 1 << ((state->sys->core.regs[0] >> 8) & 0x7);
 		default:
 			execute_unreachable_();
 	}
@@ -576,7 +580,16 @@ alu_modify_flags_ (pilot_execute_state *state, uint8_t flags, uint32_t operands[
 	// S - Sign/negative flag
 	flag_source_word |= alu_neg << 7;
 	// Z - Zero flag
-	flag_source_word |= alu_zero << 6;
+	switch (state->control->flag_z_mode)
+	{
+		case FLAG_Z_NORMAL:
+			flag_source_word |= alu_zero << 6;
+			break;
+		case FLAG_Z_BIT_TEST:
+			flag_source_word |= ((operands[0] & operands[1]) == 0) << 6;
+		default:
+			execute_unreachable_();
+	}
 	// V - Overflow/parity flag
 	switch (state->control->flag_v_mode)
 	{
@@ -602,7 +615,7 @@ alu_modify_flags_ (pilot_execute_state *state, uint8_t flags, uint32_t operands[
 	}
 	
 	// C, X - Carry/borrow flags
-	flag_source_word |= alu_carry << 1;
+	flag_source_word |= alu_carry << 3;
 	flag_source_word |= alu_carry;
 	
 	flags &= ~state->control->flag_write_mask;

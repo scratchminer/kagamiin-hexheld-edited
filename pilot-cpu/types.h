@@ -199,8 +199,14 @@ typedef enum
 	DATA_REG_IMM_2_8,
 	DATA_REG_RM_1_8,
 	DATA_REG_RM_1_2,
-	DATA_REG_RM_2_8
-} data_bus_specifier;
+	DATA_REG_RM_2_8,
+	
+	// outputs from a demultiplexer hooked up to bits 8-10 of the opcode
+	DATA_DMX_IMM_BITS,
+	
+	// outputs from a demultiplexer hooked up to bits 8-10 of the P0 register
+	DATA_DMX_P0_BITS,
+} data_bus_specifier;	
 
 typedef struct {
 	data_bus_specifier location;
@@ -223,9 +229,9 @@ typedef struct
 	} operation;
 	
 	// Source transformations (in order)
+  bool src2_add1;
 	bool src2_add_carry;
 	bool src2_negate;
-	bool src2_add1;
 	
 	// Shifter control
 	enum
@@ -243,13 +249,13 @@ typedef struct
 	// Flag control
 	uint8_t flag_write_mask;
 	bool invert_carries;
+	
 	enum
 	{
-		FLAG_C_ALU_CARRY,
-		FLAG_C_SHIFTER_CARRY,
-	} flag_c_mode;
-	
-	bool flag_d;
+		FLAG_Z_NORMAL,
+    // this ANDs src2 with src1 and sets the Z flag accordingly
+		FLAG_Z_BIT_TEST,
+	} flag_z_mode;
 	
 	enum
 	{

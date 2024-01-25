@@ -127,11 +127,11 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 	switch (opcode & 0x0700)
 	{
 		case 0x0000:
-			// JP, JR.L
+			// JP / JR.L
 			decode_not_implemented_();
 			return;
 		case 0x0100:
-			// CALL, CR.L
+			// CALL / CR.L
 			decode_not_implemented_();
 			return;
 		case 0x0200:
@@ -168,26 +168,99 @@ static void
 decode_inst_bit_ (pilot_decode_state *state, uint16_t opcode)
 {
 	execute_control_word *core_op = &state->work_regs.core_op;
+	rm_spec rm_src = opcode & 0x3f;
+	
 	core_op->src2_add1 = FALSE;
 	core_op->src2_add_carry = FALSE;
 	core_op->src2_negate = FALSE;
 	core_op->flag_write_mask = 0;
 	core_op->flag_v_mode = FLAG_V_NORMAL;
+	core_op->flag_z_mode = FLAG_Z_NORMAL;
+	
+	core_op->shifter_mode = SHIFTER_NONE;
 	
 	if ((opcode & 0x0800) == 0x0000)
 	{
-		// BIT, CHG, RES, SET
-		decode_not_implemented_();
+		decode_rm_specifier(state, rm_src, (opcode & 0x00c0) == 0x0000, TRUE, SIZE_8_BIT);
+		
+		core_op->srcs[1].location = DATA_DMX_IMM_BITS;
+		core_op->srcs[1].size = SIZE_8_BIT;
+		core_op->srcs[1].sign_extend = FALSE;
+		
+		core_op->flag_write_mask = F_ZERO;
+		
+		core_op->flag_z_mode = FLAG_Z_BIT_TEST;
+		
+		switch (opcode & 0x00c0)
+		{
+			case 0x0000:
+				// BIT imm, rm8
+				core_op->operation = ALU_OR;
+				core_op->dest = DATA_ZERO;
+				break;
+			case 0x0040:
+				// CHG imm, rm8
+				core_op->operation = ALU_XOR;
+				break;
+			case 0x0080:
+				// RES imm, rm8
+				core_op->src2_add1 = TRUE;
+				core_op->src2_negate = TRUE;
+				core_op->operation = ALU_AND;
+				break;
+			case 0x00c0:
+				// SET imm, rm8
+				core_op->operation = ALU_OR;
+				break;
+		}
+		
+		return;
+	}
+	if ((opcode & 0x0800) == 0x0800)
+	{
+		decode_rm_specifier(state, rm_src, (opcode & 0x00c0) == 0x0000, TRUE, SIZE_8_BIT);
+		
+		core_op->srcs[1].location = DATA_DMX_P0_BITS;
+		core_op->srcs[1].size = SIZE_8_BIT;
+		core_op->srcs[1].sign_extend = FALSE;
+		
+		core_op->flag_write_mask = F_ZERO;
+		
+		core_op->flag_z_mode = FLAG_Z_BIT_TEST;
+		
+		switch (opcode & 0x00c0)
+		{
+			case 0x0000:
+				// BIT M0, rm8
+				core_op->operation = ALU_OR;
+				core_op->dest = DATA_ZERO;
+				break;
+			case 0x0040:
+				// CHG M0, rm8
+				core_op->operation = ALU_XOR;
+				break;
+			case 0x0080:
+				// RES M0, rm8
+				core_op->src2_add1 = TRUE;
+				core_op->src2_negate = TRUE;
+				core_op->operation = ALU_AND;
+				break;
+			case 0x00c0:
+				// SET M0, rm8
+				core_op->operation = ALU_OR;
+				break;
+		}
+		
 		return;
 	}
 	if ((opcode & 0x0ff8) == 0x0b00)
 	{
 		// LD IRL, imm
-		core_op->dest = DATA_REG_IRL;
-		
 		core_op->srcs[1].location = DATA_LATCH_IMM_0;
 		core_op->srcs[1].size = SIZE_8_BIT;
 		core_op->srcs[1].sign_extend = FALSE;
+		
+		core_op->dest = DATA_REG_IRL;
 		return;
 	}
 	if ((opcode & 0x0c00) == 0x0c00)
@@ -238,6 +311,7 @@ decode_inst_ld_other_ (pilot_decode_state *state, uint16_t opcode)
 	core_op->src2_negate = FALSE;
 	core_op->flag_write_mask = 0;
 	core_op->flag_v_mode = FLAG_V_NORMAL;
+	core_op->flag_z_mode = FLAG_Z_NORMAL;
 
 	// left operand is never fetched and is always zero
 	core_op->srcs[0].location = DATA_ZERO;
@@ -263,6 +337,9 @@ decode_inst_ld_other_ (pilot_decode_state *state, uint16_t opcode)
 		core_op->srcs[1].sign_extend = TRUE;
 		return;
 	}
+	
+	decode_unreachable_(state);
+	return;
 }
 
 static inline void
@@ -277,12 +354,13 @@ decode_inst_arithlogic_ (pilot_decode_state *state, uint16_t opcode)
 	core_op->shifter_mode = SHIFTER_NONE;
 	core_op->src2_add1 = FALSE;
 	core_op->flag_v_mode = FLAG_V_NORMAL;
+	core_op->flag_z_mode = FLAG_Z_NORMAL;
 	
 	// Decode core_op operation
 	switch (operation)
 	{
 		case 0: case 1: case 2: case 3: case 8: case 9: case 10: case 11:
-			// ADD, ADX, SUB, SBX
+			// ADD / ADX / SUB / SBX
 			core_op->operation = ALU_ADD;
 			core_op->src2_add_carry = (operation & 1) != 0;
 			core_op->src2_negate = (operation & 2) != 0;
@@ -323,7 +401,7 @@ decode_inst_arithlogic_ (pilot_decode_state *state, uint16_t opcode)
 			switch(operation)
 			{
 				case 0: case 1: case 2: case 3:
-					// ADD, ADX, SUB, SBX
+					// ADD / ADX / SUB / SBX
 					core_op->operation = ALU_ADD;
 					core_op->src2_add_carry = operation & 1;
 					core_op->src2_negate = operation & 2;
@@ -407,6 +485,7 @@ decode_inst_ld_group_ (pilot_decode_state *state, uint16_t opcode)
 	core_op->src2_negate = FALSE;
 	core_op->flag_write_mask = 0;
 	core_op->flag_v_mode = FLAG_V_NORMAL;
+	core_op->flag_z_mode = FLAG_Z_NORMAL;
 
 	// left operand is never fetched and is always zero
 	core_op->srcs[0].location = DATA_ZERO;
@@ -461,7 +540,208 @@ decode_inst_ld_group_ (pilot_decode_state *state, uint16_t opcode)
 static void
 decode_inst_other_ (pilot_decode_state *state, uint16_t opcode)
 {
-	decode_not_implemented_();
+	execute_control_word *core_op = &state->work_regs.core_op;
+	data_size_spec size = ((opcode & 0xc000) >> 14);
+	
+	if (opcode == 0x0000)
+	{
+		// NOP
+		decode_not_implemented_();
+		return;
+	}
+	if (opcode == 0x0001)
+	{
+		// HALT
+		decode_not_implemented_();
+		return;
+	}
+	if ((opcode & 0x8fc0) == 0x0100)
+	{
+		// LD.B F, rm8 / LD.W WF, rm16
+		rm_spec rm_src = opcode & 0x3f;
+		
+		core_op->srcs[0].location = DATA_ZERO;
+		core_op->srcs[0].size = size;
+		
+		core_op->operation = ALU_OR;
+		core_op->shifter_mode = SHIFTER_NONE;
+		
+		decode_rm_specifier(state, rm_src, FALSE, FALSE, size);
+		core_op->dest = (size == SIZE_16_BIT) ? DATA_REG_WF : DATA_REG_F;
+		return;
+	}
+	if ((opcode & 0x8fc0) == 0x0700)
+	{
+		// LD.B rm8, F / LD.W rm16, WF
+		rm_spec rm_dst = opcode & 0x3f;
+		
+		core_op->srcs[0].location = DATA_ZERO;
+		core_op->srcs[0].size = size;
+		core_op->srcs[1].location = (size == SIZE_16_BIT) ? DATA_REG_WF : DATA_REG_F;
+		core_op->srcs[1].size = size;
+		
+		core_op->operation = ALU_OR;
+		core_op->shifter_mode = SHIFTER_NONE;
+		core_op->flag_write_mask = 0;
+		
+		decode_rm_specifier(state, rm_dst, TRUE, FALSE, size);
+		return;
+	}
+	if ((opcode & 0x3840) == 0x0040)
+	{
+		// ADQ / SBQ
+		rm_spec rm_rmw = opcode & 0x3f;
+		
+		core_op->srcs[1].location = DATA_LATCH_SFI_2;
+		core_op->srcs[1].size = size;
+		
+		core_op->operation = ALU_ADD;
+		core_op->shifter_mode = SHIFTER_NONE;
+		core_op->flag_write_mask = F_NEG | F_ZERO | F_OVERFLOW | F_CARRY;
+		core_op->flag_v_mode = FLAG_V_NORMAL;
+		core_op->flag_z_mode = FLAG_Z_NORMAL;
+		
+		core_op->src2_add1 = TRUE;
+		core_op->src2_negate = ((opcode & 0x0080) != 0);
+		
+		decode_rm_specifier(state, rm_rmw, TRUE, TRUE, size);
+		return;
+	}
+	if ((opcode & 0x38c0) == 0x0080)
+	{
+		rm_spec rm_rmw = opcode & 0x3f;
+		
+		core_op->srcs[0].location = DATA_ZERO;
+		core_op->srcs[0].size = size;
+		
+		core_op->operation = ALU_OR;
+		core_op->flag_write_mask = F_NEG | F_ZERO | F_OVERFLOW | F_CARRY | F_EXTEND;
+		core_op->flag_v_mode = FLAG_V_NORMAL;
+		core_op->flag_z_mode = FLAG_Z_NORMAL;
+		
+		switch ((opcode & 0x0700) >> 8)
+		{
+			case 0:
+				// RLC
+				core_op->shifter_mode = SHIFTER_LEFT_CARRY;
+				break;
+			case 1:
+				// RRC
+				core_op->shifter_mode = SHIFTER_RIGHT_CARRY;
+				break;
+			case 2:
+				// RL
+				core_op->shifter_mode = SHIFTER_LEFT_BARREL;
+				break;
+			case 3:
+				// RR
+				core_op->shifter_mode = SHIFTER_RIGHT_BARREL;
+				break;
+			case 4:
+				// SLA
+				core_op->shifter_mode = SHIFTER_LEFT;
+				break;
+			case 5:
+				// SRA
+				core_op->shifter_mode = SHIFTER_RIGHT_ARITH;
+				break;
+			case 6:
+				// SWAP
+				decode_not_implemented_();
+				break;
+			case 7:
+				// SRL
+				core_op->shifter_mode = SHIFTER_RIGHT_LOGICAL;
+				break;
+		}
+		
+		decode_rm_specifier(state, rm_rmw, TRUE, TRUE, size);
+		return;
+	}
+	if ((opcode & 0x3fc0) == 0x0800)
+	{
+		// TST
+		rm_spec rm_src = opcode & 0x3f;
+		core_op->srcs[0].location = DATA_REG_P0;
+		core_op->srcs[0].size = size;
+		
+		core_op->operation = ALU_AND;
+		core_op->flag_write_mask = F_NEG | F_ZERO | F_OVERFLOW;
+		core_op->flag_v_mode = FLAG_V_SHIFTER_CARRY;
+		core_op->flag_z_mode = FLAG_Z_NORMAL;
+		
+		decode_rm_specifier(state, rm_src, FALSE, FALSE, size);
+		core_op->dest = DATA_ZERO;
+		return;
+	}
+	if ((opcode & 0x3fc0) == 0x0840)
+	{
+		// CPL
+		rm_spec rm_rmw = opcode & 0x3f;
+		core_op->srcs[0].location = DATA_ZERO;
+		core_op->srcs[0].size = size;
+		
+		core_op->operation = ALU_OR;
+		core_op->flag_write_mask = F_NEG | F_ZERO | F_OVERFLOW;
+		core_op->flag_v_mode = FLAG_V_SHIFTER_CARRY;
+		core_op->flag_z_mode = FLAG_Z_NORMAL;
+		
+		decode_rm_specifier(state, rm_rmw, TRUE, TRUE, size);
+		core_op->src2_add1 = TRUE;
+		core_op->src2_negate = TRUE;
+		core_op->dest = DATA_ZERO;
+		return;
+	}
+	if ((opcode & 0x3fc0) == 0x0880)
+	{
+		// NEG
+		rm_spec rm_rmw = opcode & 0x3f;
+		core_op->srcs[0].location = DATA_ZERO;
+		core_op->srcs[0].size = size;
+		
+		core_op->operation = ALU_OR;
+		core_op->flag_write_mask = F_NEG | F_ZERO | F_OVERFLOW;
+		core_op->flag_v_mode = FLAG_V_SHIFTER_CARRY;
+		core_op->flag_z_mode = FLAG_Z_NORMAL;
+		
+		decode_rm_specifier(state, rm_rmw, TRUE, TRUE, size);
+		core_op->src2_negate = TRUE;
+		core_op->dest = DATA_ZERO;
+		return;
+	}
+	if ((opcode & 0x3f00) == 0x0800)
+	{
+		// NEG
+		rm_spec rm_rmw = opcode & 0x3f;
+		core_op->srcs[0].location = DATA_ZERO;
+		core_op->srcs[0].size = size;
+		
+		core_op->operation = ALU_OR;
+		core_op->flag_write_mask = F_NEG | F_ZERO | F_OVERFLOW;
+		core_op->flag_v_mode = FLAG_V_SHIFTER_CARRY;
+		core_op->flag_z_mode = FLAG_Z_NORMAL;
+		
+		decode_rm_specifier(state, rm_rmw, TRUE, TRUE, size);
+		core_op->src2_add_carry = TRUE;
+		core_op->src2_negate = (opcode & 0x0400) != 0;
+		core_op->dest = DATA_ZERO;
+		return;
+	}
+	if ((opcode & 0x3880) == 0x0800)
+	{
+		// MULU / MULS
+		decode_not_implemented_();
+		return;
+	}
+	if ((opcode & 0x38c0) == 0x0880)
+	{
+		// DIVU / DIVS
+		decode_not_implemented_();
+		return;
+	}
+	
+	
+	decode_invalid_opcode_(state->sys);
 	return;
 }
 
