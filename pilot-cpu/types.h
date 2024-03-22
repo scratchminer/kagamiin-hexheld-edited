@@ -42,7 +42,14 @@ typedef enum
 	MU_IND_MAR_AUTO,
 	
 	// post-increment
-	MU_POST_AUTOIDX
+	MU_POST_AUTOIDX,
+	
+	// repetition of an implicit instruction
+	// for MU_MUL and MU_DIV, the sign extend bit is used
+	MU_MUL,
+	MU_DIV,
+	MU_REPI,
+	MU_REPR
 } mucode_entry_idx;
 
 typedef struct
@@ -126,15 +133,17 @@ typedef enum
 	DATA_REG_RM_1_8,
 	DATA_REG_RM_1_2,
 	DATA_REG_RM_2_8,
+	DATA_REG_REPR,
 	
 	// outputs from a demultiplexer hooked up to bits 8-10 of the opcode
 	DATA_DMX_IMM_BITS,
 	
 	// outputs from a demultiplexer hooked up to bits 8-10 of the P0 register
 	DATA_DMX_P0_BITS,
-} data_bus_specifier;	
+} data_bus_specifier;
 
-typedef struct {
+typedef struct
+{
 	data_bus_specifier location;
 	data_size_spec size;
 	bool sign_extend;
@@ -169,7 +178,8 @@ typedef struct
 		SHIFTER_RIGHT_LOGICAL,
 		SHIFTER_RIGHT_ARITH,
 		SHIFTER_RIGHT_CARRY,
-		SHIFTER_RIGHT_BARREL
+		SHIFTER_RIGHT_BARREL,
+		SHIFTER_SWAP
 	} shifter_mode;
 	
 	// Flag control
@@ -181,6 +191,8 @@ typedef struct
 		FLAG_Z_NORMAL,
 		// this ANDs src2 with src1 and sets the Z flag accordingly
 		FLAG_Z_BIT_TEST,
+		// this uses the temp_z latch instead of the Z flag
+		FLAG_Z_SAVE,
 	} flag_z_mode;
 	
 	enum
@@ -255,35 +267,39 @@ typedef struct
 	bool branch;
 	enum
 	{
-		COND_LE = 0,     // less than or equal
-		COND_GT,         // greater than
-		COND_LT,         // less than
-		COND_GE,         // greater than or equal
-		COND_U_LE,       // unsigned less than or equal
-		COND_U_GT,       // unsigned greater than
-		COND_C,          // carry set; unsigned less than
-		COND_NC,         // carry clear; unsigned greater than or equal
-		COND_M,          // minus; sign set
-		COND_P,          // plus; sign clear
-		COND_V,          // overflow; parity even
-		COND_NV,         // not overflow; parity odd
-		COND_Z,          // equal; zero
-		COND_NZ,         // not equal; nonzero
-		COND_ALWAYS,     // always
-		COND_ALWAYS_CALL // always, but used for calls
+		COND_LE = 0,		// less than or equal
+		COND_GT,		// greater than
+		COND_LT,		// less than
+		COND_GE,		// greater than or equal
+		COND_U_LE,		// unsigned less than or equal
+		COND_U_GT,		// unsigned greater than
+		COND_C,			// carry set; unsigned less than
+		COND_NC,		// carry clear; unsigned greater than or equal
+		COND_M,			// minus; sign set
+		COND_P,			// plus; sign clear
+		COND_V,			// overflow; parity even
+		COND_NV,		// not overflow; parity odd
+		COND_Z,			// equal; zero
+		COND_NZ,		// not equal; nonzero
+		COND_ALWAYS,		// always
+		COND_ALWAYS_CALL,	// always, but used for calls
+		COND_DJNZ,		// nonzero, but uses the temp_z latch
 	} branch_cond;
 	
 	enum
 	{
-		BR_RELATIVE_SHORT,
-		BR_RELATIVE_LONG,
-		BR_LONG,
-		BR_RET,
-		BR_RET_LONG
+		BR_RELATIVE_SHORT,	// JR.S / CR.S
+		BR_MAR,			// JP rm24 / JEA / CALL rm24 / CEA (EA is resolved and in MAR)
+		BR_HML,			// JP hml / JR.L / CALL hml / CR.L (deferred resolution)
+		BR_RESTART,		// RST
+		BR_BACKWARD,		// DJNZ
 	} branch_dest_type;
 	
 	// Offset of the second RM operand
 	uint8_t rm2_offset;
+	
+	// Retain the repeat mode of the last instruction
+	bool keep_repeat_mode;
 } inst_decoded_flags;
 
 #endif

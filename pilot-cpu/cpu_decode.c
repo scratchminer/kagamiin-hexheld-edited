@@ -7,7 +7,7 @@
  * Pipeline stages:
  * 
  * 1. Fetch
- * The fetch stage consists of a 2-word prefetch queue and a 1-word latch connected to the decode stage.
+ * The fetch stage consists of a 5-word prefetch queue and a 1-word latch connected to the decode stage.
  * 
  * a. First half of cycle
  * - If prefetch queue is not empty and a branch is not signalled from the decode stage:
@@ -91,30 +91,81 @@ void decode_rm_specifier (pilot_decode_state *state, rm_spec rm, bool is_dest, b
 static inline void
 decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 {
+	inst_decoded_flags *work_regs = &state->work_regs;
+	execute_control_word *core_op = &work_regs->core_op;
+	
 	if ((opcode & 0xff00) == 0xff00)
 	{
 		// RST
-		decode_not_implemented_();
+		work_regs->branch = TRUE;
+		work_regs->branch_cond = COND_ALWAYS_CALL;
+		work_regs->branch_dest_type = BR_RESTART;
 		return;
 	}
 	if ((opcode & 0xffe0) == 0xfe00)
 	{
 		// REPI
-		decode_not_implemented_();
+		core_op->operation = ALU_OR;
+		core_op->shifter_mode = SHIFTER_NONE;
+		
+		core_op->srcs[0].location = DATA_ZERO;
+		core_op->src2_add1 = TRUE;
+		core_op->src2_add_carry = FALSE;
+		core_op->src2_negate = FALSE;
+		core_op->flag_write_mask = 0;
+		core_op->flag_v_mode = FLAG_V_NORMAL;
+		core_op->flag_z_mode = FLAG_Z_SAVE;
+		
+		core_op->srcs[1].location = DATA_LATCH_IMM_0;
+		core_op->srcs[1].size = SIZE_8_BIT;
+		core_op->srcs[1].sign_extend = FALSE;
+		core_op->dest = DATA_LATCH_REPI;
+		
 		return;
 	}
 	if ((opcode & 0xf800) == 0xf000)
 	{
-		if (!(opcode & 0xff))
+		if ((opcode & 0x00ff) == 0x0000)
 		{
 			// REPR
-			decode_not_implemented_();
+			core_op->operation = ALU_OR;
+			core_op->shifter_mode = SHIFTER_NONE;
+			
+			core_op->srcs[0].location = DATA_ZERO;
+			core_op->src2_add1 = FALSE;
+			core_op->src2_add_carry = FALSE;
+			core_op->src2_negate = FALSE;
+			core_op->flag_write_mask = 0;
+			core_op->flag_v_mode = FLAG_V_NORMAL;
+			core_op->flag_z_mode = FLAG_Z_NORMAL;
+			
+			core_op->srcs[1].location = DATA_LATCH_IMM_0;
+			core_op->srcs[1].size = SIZE_8_BIT;
+			core_op->srcs[1].sign_extend = FALSE;
+			core_op->dest = DATA_LATCH_REPR;
+			
 			return;
 		}
-		else if (opcode & 0x80)
+		else if ((opcode & 0x0080) == 0x0080)
 		{
 			// DJNZ
-			decode_not_implemented_();
+			core_op->operation = ALU_ADD;
+			core_op->srcs[0].location = DATA_REG_IMM_0_8;
+			core_op->srcs[1].location = DATA_ZERO;
+			core_op->src2_add1 = TRUE;
+			core_op->src2_add_carry = FALSE;
+			core_op->src2_negate = TRUE;
+			core_op->flag_write_mask = 0;
+			core_op->flag_v_mode = FLAG_V_NORMAL;
+			core_op->flag_z_mode = FLAG_Z_SAVE;
+			core_op->dest = DATA_REG_IMM_0_8;
+			
+			core_op->shifter_mode = SHIFTER_NONE;
+			
+			work_regs->branch = TRUE;
+			work_regs->branch_cond = COND_DJNZ;
+			work_regs->branch_dest_type = BR_BACKWARD;
+			
 			return;
 		}
 		else
@@ -128,11 +179,19 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 	{
 		case 0x0000:
 			// JP / JR.L
-			decode_not_implemented_();
+			decode_queue_read_word(state);
+			core_op->operation = ALU_OFF;
+			work_regs->branch = TRUE;
+			work_regs->branch_cond = COND_ALWAYS;
+			work_regs->branch_dest_type = BR_HML;
 			return;
 		case 0x0100:
 			// CALL / CR.L
-			decode_not_implemented_();
+			decode_queue_read_word(state);
+			core_op->operation = ALU_OFF;
+			work_regs->branch = TRUE;
+			work_regs->branch_cond = COND_ALWAYS;
+			work_regs->branch_dest_type = BR_HML;
 			return;
 		case 0x0200:
 		{
@@ -140,19 +199,61 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 			{
 				case 0x0000:
 					// JP rm24
-					decode_not_implemented_();
+					core_op->shifter_mode = SHIFTER_NONE;
+					core_op->src2_add1 = FALSE;
+					core_op->flag_v_mode = FLAG_V_NORMAL;
+					core_op->flag_z_mode = FLAG_Z_NORMAL;
+					
+					rm_spec rm_src = opcode & 0x3f;
+					decode_rm_specifier(state, rm_src, FALSE, FALSE, SIZE_24_BIT);
+					
+					work_regs->branch = TRUE;
+					work_regs->branch_cond = COND_ALWAYS;
+					work_regs->branch_dest_type = BR_MAR;
 					return;
 				case 0x0040:
 					// JEA
-					decode_not_implemented_();
+					core_op->shifter_mode = SHIFTER_NONE;
+					core_op->src2_add1 = FALSE;
+					core_op->flag_v_mode = FLAG_V_NORMAL;
+					core_op->flag_z_mode = FLAG_Z_NORMAL;
+					
+					rm_spec rm_src = opcode & 0x3f;
+					decode_rm_specifier(state, rm_src, FALSE, FALSE, size);
+					core_op->mem_access_suppress = TRUE;
+					
+					work_regs->branch = TRUE;
+					work_regs->branch_cond = COND_ALWAYS;
+					work_regs->branch_dest_type = BR_MAR;
 					return;
 				case 0x0100:
 					// CALL rm24
-					decode_not_implemented_();
+					core_op->shifter_mode = SHIFTER_NONE;
+					core_op->src2_add1 = FALSE;
+					core_op->flag_v_mode = FLAG_V_NORMAL;
+					core_op->flag_z_mode = FLAG_Z_NORMAL;
+					
+					rm_spec rm_src = opcode & 0x3f;
+					decode_rm_specifier(state, rm_src, FALSE, FALSE, SIZE_24_BIT);
+					
+					work_regs->branch = TRUE;
+					work_regs->branch_cond = COND_ALWAYS_CALL;
+					work_regs->branch_dest_type = BR_MAR;
 					return;
 				case 0x0140:
 					// CEA
-					decode_not_implemented_();
+					core_op->shifter_mode = SHIFTER_NONE;
+					core_op->src2_add1 = FALSE;
+					core_op->flag_v_mode = FLAG_V_NORMAL;
+					core_op->flag_z_mode = FLAG_Z_NORMAL;
+					
+					rm_spec rm_src = opcode & 0x3f;
+					decode_rm_specifier(state, rm_src, FALSE, FALSE, size);
+					core_op->mem_access_suppress = TRUE;
+					
+					work_regs->branch = TRUE;
+					work_regs->branch_cond = COND_ALWAYS_CALL;
+					work_regs->branch_dest_type = BR_MAR;
 					return;
 				default:
 					break;
@@ -546,7 +647,15 @@ decode_inst_other_ (pilot_decode_state *state, uint16_t opcode)
 	if (opcode == 0x0000)
 	{
 		// NOP
-		decode_not_implemented_();
+		core_op->srcs[0].location = DATA_ZERO;
+		core_op->srcs[0].size = size;
+		
+		core_op->srcs[1].location = DATA_ZERO;
+		core_op->srcs[1].size = size;
+		
+		core_op->operation = ALU_OR;
+		core_op->shifter_mode = SHIFTER_NONE;
+		core_op->dest = DATA_ZERO;
 		return;
 	}
 	if (opcode == 0x0001)
@@ -647,7 +756,7 @@ decode_inst_other_ (pilot_decode_state *state, uint16_t opcode)
 				break;
 			case 6:
 				// SWAP
-				decode_not_implemented_();
+				core_op->shifter_mode = SHIFTER_SWAP;
 				break;
 			case 7:
 				// SRL
@@ -739,7 +848,6 @@ decode_inst_other_ (pilot_decode_state *state, uint16_t opcode)
 		decode_not_implemented_();
 		return;
 	}
-	
 	
 	decode_invalid_opcode_(state->sys);
 	return;

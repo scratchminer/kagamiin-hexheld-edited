@@ -7,12 +7,15 @@ typedef struct {
 	uint32_t regs[8];
 	uint16_t wf;
 
-	// Program countet
+	// Program counter
 	uint32_t pgc;
 	
 	// Internal states
 	uint8_t repi;
 	uint8_t repr;
+	
+	// used only for DJNZ etc. to save the zero flag
+	bool temp_z;
 } Pilot_cpu_regs;
 
 const enum

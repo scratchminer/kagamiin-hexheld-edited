@@ -70,19 +70,20 @@ fetch_data_ (pilot_execute_state *state, data_bus_specifier src)
 		case DATA_ZERO:
 			return 0;
 		case DATA_SIZE:
+		{
+			data_size_spec size = state->mucode_decoded_buffer.srcs[0].size;
+			if (size == SIZE_8_BIT)
 			{
-				data_size_spec size = state->mucode_decoded_buffer.srcs[0].size;
-				if (size == SIZE_8_BIT) {
-					if (state->mucode_decoded_buffer.srcs[0].location == DATA_REG_SP || state->mucode_decoded_buffer.srcs[1].location == DATA_REG_SP)
-						return 2;
-					else
-						return 1;
-				}
-				else if (size == SIZE_16_BIT)
+				if (state->mucode_decoded_buffer.srcs[0].location == DATA_REG_SP || state->mucode_decoded_buffer.srcs[1].location == DATA_REG_SP)
 					return 2;
 				else
-					return 4;
+					return 1;
 			}
+			else if (size == SIZE_16_BIT)
+				return 2;
+			else
+				return 4;
+		}
 		case DATA_REG_L0:
 			return state->sys->core.regs[0] & 0xff;
 		case DATA_REG_L1:
@@ -197,6 +198,8 @@ fetch_data_ (pilot_execute_state *state, data_bus_specifier src)
 			state->mucode_decoded_buffer.srcs[1].sign_extend = ((state->decoded_inst.imm_words[state->decoded_inst.rm2_offset + 1] & 0x0800) != 0);
 			return ACCESS_REG_BITS_(state, (state->decoded_inst.imm_words[state->decoded_inst.rm2_offset + 1] >> 8) & 0x7, state->decoded_inst.imm_words[state->decoded_inst.rm2_offset + 1] >> 14);
 		}
+		case DATA_REG_REPR:
+			return ACCESS_REG_BITS_(state, state->sys->core.repr & 0x7, state->mucode_decoded_buffer.srcs[0].size);
 		case DATA_DMX_IMM_BITS:
 			return 1 << ((state->decoded_inst.imm_words[0] >> 8) & 0x7);
 		case DATA_DMX_P0_BITS:
@@ -313,6 +316,13 @@ write_data_ (pilot_execute_state *state, data_bus_specifier dest, uint32_t *src)
 		case DATA_REG_WF:
 			state->sys->core.wf = *src & 0xffff;
 			return;
+		case DATA_LATCH_REPI:
+			state->sys->core.repi = *src & 0x1f;
+			return;
+		case DATA_LATCH_REPR:
+			state->sys->core.repr = (*src >> 8) & 0x7;
+			state->sys->core.repr |= 0x8;
+			return;
 		case DATA_REG_PGC:
 			state->sys->core.pgc = *src & 0xfffffe;
 			return;
@@ -324,14 +334,23 @@ write_data_ (pilot_execute_state *state, data_bus_specifier dest, uint32_t *src)
 			return;
 		case DATA_REG_IMM_0_8:
 			state->sys->core.regs[(state->decoded_inst.imm_words[0] >> 8) & 0x7] = *src;
+			return;
 		case DATA_REG_IMM_1_8:
 			state->sys->core.regs[(state->decoded_inst.imm_words[1] >> 8) & 0x7] = *src;
+			return;
 		case DATA_REG_IMM_1_2:
 			state->sys->core.regs[(state->decoded_inst.imm_words[1] >> 2) & 0x7] = *src;
+			return;
 		case DATA_REG_RM_1_8:
 			state->sys->core.regs[(state->decoded_inst.imm_words[state->decoded_inst.rm2_offset] >> 8) & 0x7] = *src;
+			return;
 		case DATA_REG_RM_1_2:
-			 state->sys->core.regs[(state->decoded_inst.imm_words[state->decoded_inst.rm2_offset] >> 2) & 0x7] = *src;
+			state->sys->core.regs[(state->decoded_inst.imm_words[state->decoded_inst.rm2_offset] >> 2) & 0x7] = *src;
+			return;
+		case DATA_REG_REPR:
+			if (*src == 0) state->sys->core.repr &= 0x7;
+			state->sys->core.regs[state->sys->core.repr & 0x7] = *src;
+			return;
 		case DATA_REG_IMM_2_8:
 		case DATA_REG_RM_2_8:
 		case DATA_LATCH_IMM_0:
@@ -499,6 +518,8 @@ alu_operate_shifter_ (pilot_execute_state *state, uint32_t operand)
 		case SHIFTER_RIGHT_BARREL:
 			inject_bit = lsb_bit;
 			break;
+		case SHIFTER_SWAP:
+			break;
 		default:
 			execute_unreachable_();
 	}
@@ -531,6 +552,20 @@ alu_operate_shifter_ (pilot_execute_state *state, uint32_t operand)
 			else
 			{
 				operand |= inject_bit << 23;
+			}
+			break;
+		case SHIFTER_SWAP:
+			if (state->control->srcs[1].size == SIZE_8_BIT)
+			{
+				operand = ((operand & 0xf0) >> 4) | ((operand & 0x0f) << 4);
+			}
+			else if (state->control->srcs[1].size == SIZE_16_BIT)
+			{
+				operand = ((operand & 0xff00) >> 8) | ((operand & 0x00ff) << 8);
+			}
+			else
+			{
+				operand = ((operand & 0xff0000) >> 16) | (operand & 0xff00) | ((operand & 0x0000ff) << 16);
 			}
 			break;
 		default:
@@ -589,6 +624,10 @@ alu_modify_flags_ (pilot_execute_state *state, uint8_t flags, uint32_t operands[
 			break;
 		case FLAG_Z_BIT_TEST:
 			flag_source_word |= ((operands[0] & operands[1]) == 0) << 6;
+			break;
+		case FLAG_Z_SAVE:
+			state->sys->core.temp_z = (alu_zero != 0);
+			break;
 		default:
 			execute_unreachable_();
 	}
@@ -909,6 +948,11 @@ pilot_execute_sequencer_advance (pilot_execute_state *state)
 		{
 			state->sequencer_phase = EXEC_SEQ_FINAL_STEPS;
 		}
+	}
+	
+	if (state->sequencer_phase == EXEC_SEQ_SIGNAL_BRANCH)
+	{
+		
 	}
 }
 

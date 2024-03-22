@@ -309,6 +309,54 @@ after_autoidx_ (mucode_entry_spec spec)
 	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
 	return prg;
 }
+/*
+static mucode_entry
+repi_ (mucode_entry_spec spec)
+{
+	mucode_entry prg = base_entry_(spec);
+	prg.operation.srcs[0].location = DATA_LATCH_REPI;
+	prg.operation.srcs[0].size = SIZE_8_BIT;
+	
+	prg.operation.srcs[1].location = DATA_ZERO;
+	prg.operation.srcs[1].size = SIZE_8_BIT;
+	
+	prg.operation.src2_add1 = TRUE;
+	prg.operation.src2_add_carry = FALSE;
+	prg.operation.src2_negate = TRUE;
+	
+	prg.operation.flag_write_mask = 0;
+	prg.operation.flag_z_mode = FLAG_Z_SAVE;
+	
+	prg.operation.operation = ALU_ADD;
+	
+	prg.operation.dest = DATA_LATCH_REPI;
+	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
+	return prg;
+}
+
+static mucode_entry
+repr_ (mucode_entry_spec spec)
+{
+	mucode_entry prg = base_entry_(spec);
+	prg.operation.srcs[0].location = DATA_REG_REPR;
+	prg.operation.srcs[0].size = SIZE_24_BIT;
+	
+	prg.operation.srcs[1].location = DATA_ZERO;
+	prg.operation.srcs[1].size = SIZE_24_BIT;
+	
+	prg.operation.src2_add1 = TRUE;
+	prg.operation.src2_add_carry = FALSE;
+	prg.operation.src2_negate = TRUE;
+	
+	prg.operation.flag_write_mask = 0;
+	prg.operation.flag_z_mode = FLAG_Z_NORMAL;
+	
+	prg.operation.operation = ALU_ADD;
+	
+	prg.operation.dest = DATA_REG_REPR;
+	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
+	return prg;
+}*/
 
 mucode_entry
 decode_mucode_entry (mucode_entry_spec spec)
