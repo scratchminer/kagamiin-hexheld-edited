@@ -45,9 +45,6 @@ typedef enum
 	MU_POST_AUTOIDX,
 	
 	// repetition of an implicit instruction
-	// for MU_MUL and MU_DIV, the sign extend bit is used
-	MU_MUL,
-	MU_DIV,
 	MU_REPI,
 	MU_REPR
 } mucode_entry_idx;
@@ -219,6 +216,7 @@ typedef struct
 		// Latches at second half of cycle, address is whatever was left in MAR (used for destination writeback)
 		MEM_LATCH_HALF2_MAR,
 	} mem_latch_ctl;
+	
 	// If set, suppresses memory access assertion if memory is latched in this cycle
 	bool mem_access_suppress;
 	enum
@@ -254,14 +252,14 @@ typedef struct
 	uint32_t inst_pgc;
 	
 	// Sequencer control
-	// override_op: if not MU_NONE, overrides the entire execution with itself
-	mucode_entry_spec override_op;
 	// run_before: if not MU_NONE, is executed before core_op - usually for memory reads
 	mucode_entry_spec run_before;
 	// core_op: single-cycle execution control word assembled by the decode stage
 	execute_control_word core_op;
 	// run_after: if not MU_NONE, is executed after core_op - usually for memory writes
 	mucode_entry_spec run_after;
+	// repeat_op: if not MU_NONE, is executed after entire instruction - for the repeat instructions
+	mucode_entry_spec repeat_op;
 	
 	// Branch flags
 	bool branch;
@@ -289,7 +287,7 @@ typedef struct
 	enum
 	{
 		BR_RELATIVE_SHORT,	// JR.S / CR.S
-		BR_MAR,			// JP rm24 / JEA / CALL rm24 / CEA (EA is resolved and in MAR)
+		BR_MAR,			// JP rm24 / JEA / CALL rm24 / CEA (address is resolved and in MAR)
 		BR_HML,			// JP hml / JR.L / CALL hml / CR.L (deferred resolution)
 		BR_RESTART,		// RST
 		BR_BACKWARD,		// DJNZ
@@ -297,9 +295,6 @@ typedef struct
 	
 	// Offset of the second RM operand
 	uint8_t rm2_offset;
-	
-	// Retain the repeat mode of the last instruction
-	bool keep_repeat_mode;
 } inst_decoded_flags;
 
 #endif

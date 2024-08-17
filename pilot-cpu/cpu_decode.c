@@ -93,6 +93,7 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 {
 	inst_decoded_flags *work_regs = &state->work_regs;
 	execute_control_word *core_op = &work_regs->core_op;
+	mucode_entry_spec *repeat_op = &work_regs->repeat_op;
 	
 	if ((opcode & 0xff00) == 0xff00)
 	{
@@ -121,6 +122,8 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 		core_op->srcs[1].sign_extend = FALSE;
 		core_op->dest = DATA_LATCH_REPI;
 		
+		repeat_op->entry_idx = MU_REPI;
+		
 		return;
 	}
 	if ((opcode & 0xf800) == 0xf000)
@@ -144,6 +147,8 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 			core_op->srcs[1].sign_extend = FALSE;
 			core_op->dest = DATA_LATCH_REPR;
 			
+			repeat_op->entry_idx = MU_REPR;
+			
 			return;
 		}
 		else if ((opcode & 0x0080) == 0x0080)
@@ -152,7 +157,7 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 			core_op->operation = ALU_ADD;
 			core_op->srcs[0].location = DATA_REG_IMM_0_8;
 			core_op->srcs[1].location = DATA_ZERO;
-			core_op->src2_add1 = TRUE;
+			core_op->src2_add1 = FALSE;
 			core_op->src2_add_carry = FALSE;
 			core_op->src2_negate = TRUE;
 			core_op->flag_write_mask = 0;
@@ -820,7 +825,7 @@ decode_inst_other_ (pilot_decode_state *state, uint16_t opcode)
 	}
 	if ((opcode & 0x3f00) == 0x0800)
 	{
-		// NEG
+		// NGX
 		rm_spec rm_rmw = opcode & 0x3f;
 		core_op->srcs[0].location = DATA_ZERO;
 		core_op->srcs[0].size = size;

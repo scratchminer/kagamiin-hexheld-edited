@@ -1,4 +1,3 @@
-#include <string.h>
 #include "cpu_regs.h"
 #include "cpu_decode.h"
 #include "cpu_execute.h"
@@ -12,6 +11,7 @@ typedef struct {
 	mucode_entry_spec mucode_control;
 	execute_control_word mucode_decoded_buffer;
 	execute_control_word *control;
+	mucode_entry_spec repeat_type;
 	
 	uint32_t alu_input_latches[2];
 	uint32_t alu_output_latch;
@@ -46,12 +46,13 @@ typedef struct {
 	enum
 	{
 		EXEC_SEQ_WAIT_NEXT_INS,
+		EXEC_SEQ_WAIT_CACHED_INS,
 		EXEC_SEQ_EVAL_CONTROL,
-		EXEC_SEQ_OVERRIDE_OP,
 		EXEC_SEQ_RUN_BEFORE,
 		EXEC_SEQ_CORE_OP,
 		EXEC_SEQ_CORE_OP_EXECUTED,
 		EXEC_SEQ_RUN_AFTER,
+		EXEC_SEQ_REPEAT_OP,
 		EXEC_SEQ_FINAL_STEPS,
 		EXEC_SEQ_SIGNAL_BRANCH,
 	} sequencer_phase;
@@ -889,7 +890,22 @@ pilot_execute_sequencer_advance (pilot_execute_state *state)
 
 	if (state->sequencer_phase == EXEC_SEQ_FINAL_STEPS)
 	{
-		state->sequencer_phase = EXEC_SEQ_WAIT_NEXT_INS;
+		if (state->decoded_inst.repeat_op.entry_idx != MU_NONE)
+		{
+			state->sequencer_phase = EXEC_SEQ_WAIT_NEXT_INS;
+			
+			state->repeat_type = state->decoded_inst.repeat_op;
+			state->decoded_inst.repeat_op.entry_idx = MU_NONE;
+		}
+		else if (state->repeat_type.entry_idx != MU_NONE)
+		{
+			state->sequencer_phase = EXEC_SEQ_REPEAT_OP;
+			state->mucode_control = state->repeat_type;
+		}
+		else
+		{
+			state->sequencer_phase = EXEC_SEQ_WAIT_NEXT_INS;
+		}
 	}
 	
 	if (state->sequencer_phase == EXEC_SEQ_WAIT_NEXT_INS)
@@ -902,13 +918,14 @@ pilot_execute_sequencer_advance (pilot_execute_state *state)
 		}
 	}
 	
+	if (state->sequencer_phase == EXEC_SEQ_WAIT_CACHED_INS)
+	{
+		state->decoded_inst = *state->sys->interconnects.decoded_inst;
+		state->sequencer_phase = EXEC_SEQ_EVAL_CONTROL;
+	}
+	
 	if (state->sequencer_phase == EXEC_SEQ_EVAL_CONTROL)
 	{
-		if (state->decoded_inst.override_op.entry_idx != MU_NONE)
-		{
-			state->sequencer_phase = EXEC_SEQ_OVERRIDE_OP;
-			state->mucode_control = state->decoded_inst.override_op;
-		}
 		else if (state->decoded_inst.run_before.entry_idx != MU_NONE)
 		{
 			state->sequencer_phase = EXEC_SEQ_RUN_BEFORE;
@@ -917,14 +934,6 @@ pilot_execute_sequencer_advance (pilot_execute_state *state)
 		else
 		{
 			state->sequencer_phase = EXEC_SEQ_CORE_OP;
-		}
-	}
-	
-	if (state->sequencer_phase == EXEC_SEQ_OVERRIDE_OP)
-	{
-		if (!pilot_execute_sequencer_mucode_run(state))
-		{
-			state->sequencer_phase = EXEC_SEQ_FINAL_STEPS;
 		}
 	}
 	
@@ -947,6 +956,15 @@ pilot_execute_sequencer_advance (pilot_execute_state *state)
 		if (!pilot_execute_sequencer_mucode_run(state))
 		{
 			state->sequencer_phase = EXEC_SEQ_FINAL_STEPS;
+		}
+	}
+	
+	if (state->sequencer_phase == EXEC_SEQ_REPEAT_OP)
+	{
+		if (!pilot_execute_sequencer_mucode_run(state))
+		{
+			// todo: the "jump if not zero" part of the repeat operations -- it would just loop forever as-is
+			state->sequencer_phase = EXEC_SEQ_WAIT_CACHED_INS;
 		}
 	}
 	

@@ -30,7 +30,7 @@ mem_read (Pilot_system *sys)
 	}
 	else if (addr <= CART_ROM_END)
 	{
-		// call cartridge mapper
+		// call cartridge ROM mapper
 	}
 	else if (addr <= TMRAM_END)
 	{
@@ -104,7 +104,7 @@ mem_write (Pilot_system *sys)
  * Tick 1+n, n >= 0: Pilot_mem_get_data - read data latch
  * 
  * Writes:
- * Tick 0: Pilot_mem_addr_write_assert
+ * Tick 0: Pilot_mem_addr_write_assert - assert the address to be accessed
  * 
  */
 Pilot_memctl_state

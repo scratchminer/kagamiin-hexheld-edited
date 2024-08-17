@@ -2,7 +2,6 @@
 #define __PILOT_H__
 
 #include <stdint.h>
-#include <stddef.h>
 #include "cpu_regs.h"
 #include "cpu_interconnect.h"
 

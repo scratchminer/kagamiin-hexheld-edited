@@ -309,7 +309,7 @@ after_autoidx_ (mucode_entry_spec spec)
 	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
 	return prg;
 }
-/*
+
 static mucode_entry
 repi_ (mucode_entry_spec spec)
 {
@@ -356,7 +356,7 @@ repr_ (mucode_entry_spec spec)
 	prg.operation.dest = DATA_REG_REPR;
 	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
 	return prg;
-}*/
+}
 
 mucode_entry
 decode_mucode_entry (mucode_entry_spec spec)
@@ -394,6 +394,10 @@ decode_mucode_entry (mucode_entry_spec spec)
 			return result = ind_2cyc_mar_auto_(spec);
 		case MU_POST_AUTOIDX:
 			return result = after_autoidx_(spec);
+		case MU_REPI:
+			return result = repi_(spec);
+		case MU_REPR:
+			return result = repr_(spec);
 		default:
 			decode_unreachable_();
 			return base_entry_(spec);
