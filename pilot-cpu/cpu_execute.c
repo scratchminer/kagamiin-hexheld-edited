@@ -616,7 +616,7 @@ alu_modify_flags_ (pilot_execute_state *state, uint8_t flags, uint32_t operands[
 	alu_carry ^= state->control->invert_carries;
 	
 	// S - Sign/negative flag
-	flag_source_word |= (alu_neg) ? F_SIGN : 0;
+	flag_source_word |= (alu_sign) ? F_SIGN : 0;
 	// Z - Zero flag
 	switch (state->control->flag_z_mode)
 	{

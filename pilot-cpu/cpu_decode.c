@@ -185,7 +185,7 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 		// JR cond / JR.S / CR.S
 		core_op->operation = ALU_OFF;
 		work_regs->branch = TRUE;
-		work_regs->branch_cond = opcode >> 12;
+		work_regs->branch_cond = (opcode >> 8) & 0xf;
 		work_regs->branch_dest_type = BR_RELATIVE_SHORT;
 	}
 	
