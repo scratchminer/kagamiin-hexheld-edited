@@ -14,13 +14,16 @@ typedef struct {
 	uint8_t repi;
 	uint8_t repr;
 	
-	// used only for DJNZ etc. to save the zero flag
+	// used only for DJNZ / REPI to save the zero flag
 	bool temp_z;
+	
+	// used only for REPI / REPR to tell when to break
+	bool used_z;
 } Pilot_cpu_regs;
 
 const enum
 {
-	// Extend carry/borrow
+	// Extend carry/borrow flag
 	F_EXTEND   = 1 << 0,
 	// Decimal flag
 	F_DECIMAL  = 1 << 1,
@@ -31,7 +34,7 @@ const enum
 	// Zero flag
 	F_ZERO     = 1 << 6,
 	// Sign (negative) flag
-	F_NEG      = 1 << 7,
+	F_SIGN     = 1 << 7,
 	// Interrupt request level
 	F_IRL      = 0x7 << 8
 } flag_masks;

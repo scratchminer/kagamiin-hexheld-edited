@@ -179,7 +179,16 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 			return;
 		}
 	}
-
+	
+	if ((opcode & 0xf000) == 0xe000)
+	{
+		// JR cond / JR.S / CR.S
+		core_op->operation = ALU_OFF;
+		work_regs->branch = TRUE;
+		work_regs->branch_cond = opcode >> 12;
+		work_regs->branch_dest_type = BR_RELATIVE_SHORT;
+	}
+	
 	switch (opcode & 0x0700)
 	{
 		case 0x0000:
@@ -200,6 +209,8 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 			return;
 		case 0x0200:
 		{
+			rm_spec rm_src = opcode & 0x3f;
+			
 			switch (opcode & 0x01c0)
 			{
 				case 0x0000:
@@ -209,7 +220,6 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 					core_op->flag_v_mode = FLAG_V_NORMAL;
 					core_op->flag_z_mode = FLAG_Z_NORMAL;
 					
-					rm_spec rm_src = opcode & 0x3f;
 					decode_rm_specifier(state, rm_src, FALSE, FALSE, SIZE_24_BIT);
 					
 					work_regs->branch = TRUE;
@@ -223,8 +233,7 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 					core_op->flag_v_mode = FLAG_V_NORMAL;
 					core_op->flag_z_mode = FLAG_Z_NORMAL;
 					
-					rm_spec rm_src = opcode & 0x3f;
-					decode_rm_specifier(state, rm_src, FALSE, FALSE, size);
+					decode_rm_specifier(state, rm_src, FALSE, FALSE, SIZE_24_BIT);
 					core_op->mem_access_suppress = TRUE;
 					
 					work_regs->branch = TRUE;
@@ -238,7 +247,6 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 					core_op->flag_v_mode = FLAG_V_NORMAL;
 					core_op->flag_z_mode = FLAG_Z_NORMAL;
 					
-					rm_spec rm_src = opcode & 0x3f;
 					decode_rm_specifier(state, rm_src, FALSE, FALSE, SIZE_24_BIT);
 					
 					work_regs->branch = TRUE;
@@ -252,8 +260,7 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 					core_op->flag_v_mode = FLAG_V_NORMAL;
 					core_op->flag_z_mode = FLAG_Z_NORMAL;
 					
-					rm_spec rm_src = opcode & 0x3f;
-					decode_rm_specifier(state, rm_src, FALSE, FALSE, size);
+					decode_rm_specifier(state, rm_src, FALSE, FALSE, SIZE_24_BIT);
 					core_op->mem_access_suppress = TRUE;
 					
 					work_regs->branch = TRUE;
@@ -310,7 +317,6 @@ decode_inst_bit_ (pilot_decode_state *state, uint16_t opcode)
 				break;
 			case 0x0080:
 				// RES imm, rm8
-				core_op->src2_add1 = TRUE;
 				core_op->src2_negate = TRUE;
 				core_op->operation = ALU_AND;
 				break;
@@ -347,7 +353,6 @@ decode_inst_bit_ (pilot_decode_state *state, uint16_t opcode)
 				break;
 			case 0x0080:
 				// RES M0, rm8
-				core_op->src2_add1 = TRUE;
 				core_op->src2_negate = TRUE;
 				core_op->operation = ALU_AND;
 				break;
@@ -470,35 +475,35 @@ decode_inst_arithlogic_ (pilot_decode_state *state, uint16_t opcode)
 			core_op->operation = ALU_ADD;
 			core_op->src2_add_carry = (operation & 1) != 0;
 			core_op->src2_negate = (operation & 2) != 0;
-			core_op->flag_write_mask = F_NEG | F_ZERO | F_OVERFLOW | F_CARRY | F_EXTEND;
+			core_op->flag_write_mask = F_SIGN | F_ZERO | F_OVERFLOW | F_CARRY | F_EXTEND;
 			break;
 		case 4: case 12:
 			// AND
 			core_op->operation = ALU_AND;
 			core_op->src2_add_carry = FALSE;
 			core_op->src2_negate = FALSE;
-			core_op->flag_write_mask = F_NEG | F_ZERO | F_OVERFLOW | F_CARRY;
+			core_op->flag_write_mask = F_SIGN | F_ZERO | F_OVERFLOW | F_CARRY;
 			break;
 		case 5: case 13:
 			// XOR
 			core_op->operation = ALU_XOR;
 			core_op->src2_add_carry = FALSE;
 			core_op->src2_negate = FALSE;
-			core_op->flag_write_mask = F_NEG | F_ZERO | F_OVERFLOW | F_CARRY;
+			core_op->flag_write_mask = F_SIGN | F_ZERO | F_OVERFLOW | F_CARRY;
 			break;
 		case 6: case 14:
 			// OR
 			core_op->operation = ALU_OR;
 			core_op->src2_add_carry = FALSE;
 			core_op->src2_negate = FALSE;
-			core_op->flag_write_mask = F_NEG | F_ZERO | F_OVERFLOW | F_CARRY;
+			core_op->flag_write_mask = F_SIGN | F_ZERO | F_OVERFLOW | F_CARRY;
 			break;
 		case 7:
 			// CP
 			core_op->operation = ALU_ADD;
 			core_op->src2_add_carry = FALSE;
 			core_op->src2_negate = TRUE;
-			core_op->flag_write_mask = F_NEG | F_ZERO | F_OVERFLOW | F_CARRY;
+			core_op->flag_write_mask = F_SIGN | F_ZERO | F_OVERFLOW | F_CARRY;
 			break;
 		case 15:
 		{
@@ -511,35 +516,35 @@ decode_inst_arithlogic_ (pilot_decode_state *state, uint16_t opcode)
 					core_op->operation = ALU_ADD;
 					core_op->src2_add_carry = operation & 1;
 					core_op->src2_negate = operation & 2;
-					core_op->flag_write_mask = F_NEG | F_ZERO | F_OVERFLOW | F_CARRY | F_EXTEND;
+					core_op->flag_write_mask = F_SIGN | F_ZERO | F_OVERFLOW | F_CARRY | F_EXTEND;
 					break;
 				case 4:
 					// AND
 					core_op->operation = ALU_AND;
 					core_op->src2_add_carry = FALSE;
 					core_op->src2_negate = FALSE;
-					core_op->flag_write_mask = F_NEG | F_ZERO | F_OVERFLOW | F_CARRY;
+					core_op->flag_write_mask = F_SIGN | F_ZERO | F_OVERFLOW | F_CARRY;
 					break;
 				case 5:
 					// XOR
 					core_op->operation = ALU_XOR;
 					core_op->src2_add_carry = FALSE;
 					core_op->src2_negate = FALSE;
-					core_op->flag_write_mask = F_NEG | F_ZERO | F_OVERFLOW | F_CARRY;
+					core_op->flag_write_mask = F_SIGN | F_ZERO | F_OVERFLOW | F_CARRY;
 					break;
 				case 6:
 					// OR
 					core_op->operation = ALU_OR;
 					core_op->src2_add_carry = FALSE;
 					core_op->src2_negate = FALSE;
-					core_op->flag_write_mask = F_NEG | F_ZERO | F_OVERFLOW | F_CARRY;
+					core_op->flag_write_mask = F_SIGN | F_ZERO | F_OVERFLOW | F_CARRY;
 					break;
 				case 7:
 					// CP
 					core_op->operation = ALU_ADD;
 					core_op->src2_add_carry = FALSE;
 					core_op->src2_negate = TRUE;
-					core_op->flag_write_mask = F_NEG | F_ZERO | F_OVERFLOW | F_CARRY;
+					core_op->flag_write_mask = F_SIGN | F_ZERO | F_OVERFLOW | F_CARRY;
 					break;
 			default:
 				decode_unreachable_();
@@ -711,7 +716,7 @@ decode_inst_other_ (pilot_decode_state *state, uint16_t opcode)
 		
 		core_op->operation = ALU_ADD;
 		core_op->shifter_mode = SHIFTER_NONE;
-		core_op->flag_write_mask = F_NEG | F_ZERO | F_OVERFLOW | F_CARRY;
+		core_op->flag_write_mask = F_SIGN | F_ZERO | F_OVERFLOW | F_CARRY;
 		core_op->flag_v_mode = FLAG_V_NORMAL;
 		core_op->flag_z_mode = FLAG_Z_NORMAL;
 		
@@ -729,7 +734,7 @@ decode_inst_other_ (pilot_decode_state *state, uint16_t opcode)
 		core_op->srcs[0].size = size;
 		
 		core_op->operation = ALU_OR;
-		core_op->flag_write_mask = F_NEG | F_ZERO | F_OVERFLOW | F_CARRY | F_EXTEND;
+		core_op->flag_write_mask = F_SIGN | F_ZERO | F_OVERFLOW | F_CARRY | F_EXTEND;
 		core_op->flag_v_mode = FLAG_V_NORMAL;
 		core_op->flag_z_mode = FLAG_Z_NORMAL;
 		
@@ -780,7 +785,7 @@ decode_inst_other_ (pilot_decode_state *state, uint16_t opcode)
 		core_op->srcs[0].size = size;
 		
 		core_op->operation = ALU_AND;
-		core_op->flag_write_mask = F_NEG | F_ZERO | F_OVERFLOW;
+		core_op->flag_write_mask = F_SIGN | F_ZERO | F_OVERFLOW;
 		core_op->flag_v_mode = FLAG_V_SHIFTER_CARRY;
 		core_op->flag_z_mode = FLAG_Z_NORMAL;
 		
@@ -796,7 +801,7 @@ decode_inst_other_ (pilot_decode_state *state, uint16_t opcode)
 		core_op->srcs[0].size = size;
 		
 		core_op->operation = ALU_OR;
-		core_op->flag_write_mask = F_NEG | F_ZERO | F_OVERFLOW;
+		core_op->flag_write_mask = F_SIGN | F_ZERO | F_OVERFLOW;
 		core_op->flag_v_mode = FLAG_V_SHIFTER_CARRY;
 		core_op->flag_z_mode = FLAG_Z_NORMAL;
 		
@@ -814,7 +819,7 @@ decode_inst_other_ (pilot_decode_state *state, uint16_t opcode)
 		core_op->srcs[0].size = size;
 		
 		core_op->operation = ALU_OR;
-		core_op->flag_write_mask = F_NEG | F_ZERO | F_OVERFLOW;
+		core_op->flag_write_mask = F_SIGN | F_ZERO | F_OVERFLOW;
 		core_op->flag_v_mode = FLAG_V_SHIFTER_CARRY;
 		core_op->flag_z_mode = FLAG_Z_NORMAL;
 		
@@ -831,7 +836,7 @@ decode_inst_other_ (pilot_decode_state *state, uint16_t opcode)
 		core_op->srcs[0].size = size;
 		
 		core_op->operation = ALU_OR;
-		core_op->flag_write_mask = F_NEG | F_ZERO | F_OVERFLOW;
+		core_op->flag_write_mask = F_SIGN | F_ZERO | F_OVERFLOW;
 		core_op->flag_v_mode = FLAG_V_SHIFTER_CARRY;
 		core_op->flag_z_mode = FLAG_Z_NORMAL;
 		

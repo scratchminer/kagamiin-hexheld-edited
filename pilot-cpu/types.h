@@ -275,8 +275,8 @@ typedef struct
 		COND_NC,		// carry clear; unsigned greater than or equal
 		COND_M,			// minus; sign set
 		COND_P,			// plus; sign clear
-		COND_V,			// overflow; parity even
-		COND_NV,		// not overflow; parity odd
+		COND_OV,		// overflow; parity even
+		COND_NOV,		// not overflow; parity odd
 		COND_Z,			// equal; zero
 		COND_NZ,		// not equal; nonzero
 		COND_ALWAYS,		// always

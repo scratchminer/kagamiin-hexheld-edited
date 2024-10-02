@@ -582,7 +582,7 @@ alu_modify_flags_ (pilot_execute_state *state, uint8_t flags, uint32_t operands[
 	bool alu_carry;
 	bool alu_overflow;
 	bool alu_zero;
-	bool alu_neg;
+	bool alu_sign;
 	uint8_t flag_source_word = 0;
 	
 	uint32_t alu_parity = result;
@@ -593,14 +593,14 @@ alu_modify_flags_ (pilot_execute_state *state, uint8_t flags, uint32_t operands[
 	if (state->control->srcs[0].size == SIZE_8_BIT)
 	{
 		alu_carry = (carries & 0x80) != 0;
-		alu_neg = (result & 0x80) != 0;
+		alu_sign = (result & 0x80) != 0;
 		alu_overflow = ((operands[1] ^ result) & (operands[0] ^ result) & 0x80) != 0;
 		alu_zero = (result & 0xff) == 0;
 	}
 	else if (state->control->srcs[0].size == SIZE_16_BIT)
 	{
 		alu_carry = (carries & 0x8000) != 0;
-		alu_neg = (result & 0x8000) != 0;
+		alu_sign = (result & 0x8000) != 0;
 		alu_overflow = ((operands[1] ^ result) & (operands[0] ^ result) & 0x8000) != 0;
 		alu_zero = (result & 0xffff) == 0;
 		alu_parity ^= (alu_parity >> 8);
@@ -608,7 +608,7 @@ alu_modify_flags_ (pilot_execute_state *state, uint8_t flags, uint32_t operands[
 	else
 	{
 		alu_carry = (carries & 0x800000) != 0;
-		alu_neg = (result & 0x800000) != 0;
+		alu_sign = (result & 0x800000) != 0;
 		alu_overflow = ((operands[1] ^ result) & (operands[0] ^ result) & 0x800000) != 0;
 		alu_zero = (result) == 0;
 		alu_parity ^= (alu_parity >> 8) ^ (alu_parity >> 16);
@@ -616,18 +616,21 @@ alu_modify_flags_ (pilot_execute_state *state, uint8_t flags, uint32_t operands[
 	alu_carry ^= state->control->invert_carries;
 	
 	// S - Sign/negative flag
-	flag_source_word |= alu_neg << 7;
+	flag_source_word |= (alu_neg) ? F_SIGN : 0;
 	// Z - Zero flag
 	switch (state->control->flag_z_mode)
 	{
 		case FLAG_Z_NORMAL:
-			flag_source_word |= alu_zero << 6;
+			flag_source_word |= (alu_zero) ? F_ZERO : 0;
+			state->sys->core.used_z = alu_zero;
 			break;
 		case FLAG_Z_BIT_TEST:
-			flag_source_word |= ((operands[0] & operands[1]) == 0) << 6;
+			flag_source_word |= ((operands[0] & operands[1]) == 0) ? F_ZERO : 0;
+			state->sys->core.used_z = ((operands[0] & operands[1]) == 0);
 			break;
 		case FLAG_Z_SAVE:
 			state->sys->core.temp_z = (alu_zero != 0);
+			state->sys->core.used_z = (alu_zero != 0);
 			break;
 		default:
 			execute_unreachable_();
@@ -639,16 +642,16 @@ alu_modify_flags_ (pilot_execute_state *state, uint8_t flags, uint32_t operands[
 			if (state->control->operation == ALU_ADD)
 			{
 				// overflow
-				flag_source_word |= alu_overflow << 2;
+				flag_source_word |= (alu_overflow) ? F_OVERFLOW : 0;
 			}
 			else
 			{
 				// parity
-				flag_source_word |= alu_parity << 2;
+				flag_source_word |= (alu_parity) ? F_OVERFLOW : 0;
 			}
 			break;
 		case FLAG_V_SHIFTER_CARRY:
-			flag_source_word |= (state->alu_shifter_carry_bit != 0) << 2;
+			flag_source_word |= (state->alu_shifter_carry_bit != 0) ? F_OVERFLOW : 0;
 			break;
 		case FLAG_V_CLEAR:
 			break;
@@ -657,8 +660,8 @@ alu_modify_flags_ (pilot_execute_state *state, uint8_t flags, uint32_t operands[
 	}
 	
 	// C, X - Carry/borrow flags
-	flag_source_word |= alu_carry << 3;
-	flag_source_word |= alu_carry;
+	flag_source_word |= (alu_carry) ? F_CARRY : 0;
+	flag_source_word |= (alu_carry) ? F_EXTEND : 0;
 	
 	flags &= ~state->control->flag_write_mask;
 	flags |= (flag_source_word & state->control->flag_write_mask);
@@ -872,6 +875,53 @@ pilot_execute_sequencer_mucode_run (pilot_execute_state *state)
 	return FALSE;
 }
 
+bool
+pilot_execute_sequencer_branch_test (pilot_execute_state *state)
+{
+	uint8_t flags = fetch_data_(state, DATA_REG_F);
+	bool overflow = (flags & F_OVERFLOW) != 0;
+	bool carry = (flags & F_CARRY) != 0;
+	bool zero = (flags & F_ZERO) != 0;
+	bool sign = (flags & F_SIGN) != 0;
+	
+	switch (state->decoded_inst.branch_cond)
+	{
+		case COND_LE:
+			return zero || (sign != overflow);
+		case COND_GT:
+			return (!zero) && (sign == overflow);
+		case COND_LT:
+			return sign != overflow;
+		case COND_GE:
+			return sign == overflow;
+		case COND_U_LE:
+			return carry || zero;
+		case COND_U_GT:
+			return (!carry) && (!zero);
+		case COND_C:
+			return carry;
+		case COND_NC:
+			return !carry;
+		case COND_M:
+			return sign;
+		case COND_P:
+			return !sign;
+		case COND_OV:
+			return overflow;
+		case COND_NOV:
+			return !overflow;
+		case COND_Z:
+			return zero;
+		case COND_NZ:
+			return !zero;
+		case COND_ALWAYS:
+		case COND_ALWAYS_CALL:
+			return TRUE;
+		case COND_DJNZ:
+			return !state->sys->core.temp_z;
+	}
+}
+
 void
 pilot_execute_sequencer_advance (pilot_execute_state *state)
 {
@@ -890,7 +940,11 @@ pilot_execute_sequencer_advance (pilot_execute_state *state)
 
 	if (state->sequencer_phase == EXEC_SEQ_FINAL_STEPS)
 	{
-		if (state->decoded_inst.repeat_op.entry_idx != MU_NONE)
+		if (state->decoded_inst.branch)
+		{
+			state->sequencer_phase = EXEC_SEQ_SIGNAL_BRANCH;
+		}
+		else if (state->decoded_inst.repeat_op.entry_idx != MU_NONE)
 		{
 			state->sequencer_phase = EXEC_SEQ_WAIT_NEXT_INS;
 			
@@ -926,7 +980,7 @@ pilot_execute_sequencer_advance (pilot_execute_state *state)
 	
 	if (state->sequencer_phase == EXEC_SEQ_EVAL_CONTROL)
 	{
-		else if (state->decoded_inst.run_before.entry_idx != MU_NONE)
+		if (state->decoded_inst.run_before.entry_idx != MU_NONE)
 		{
 			state->sequencer_phase = EXEC_SEQ_RUN_BEFORE;
 			state->mucode_control = state->decoded_inst.run_before;
@@ -963,14 +1017,28 @@ pilot_execute_sequencer_advance (pilot_execute_state *state)
 	{
 		if (!pilot_execute_sequencer_mucode_run(state))
 		{
-			// todo: the "jump if not zero" part of the repeat operations -- it would just loop forever as-is
-			state->sequencer_phase = EXEC_SEQ_WAIT_CACHED_INS;
+			if (state->sys->core.used_z)
+			{
+				state->repeat_type.entry_idx = MU_NONE;
+				state->sequencer_phase = EXEC_SEQ_FINAL_STEPS;
+			}
+			else
+			{
+				state->sequencer_phase = EXEC_SEQ_WAIT_CACHED_INS;
+			}
 		}
 	}
 	
 	if (state->sequencer_phase == EXEC_SEQ_SIGNAL_BRANCH)
 	{
-		
+		if (pilot_execute_sequencer_branch_test(state))
+		{
+			// branch according to state->decoded_inst.branch_dest_type
+		}
+		else
+		{
+			state->sequencer_phase = EXEC_SEQ_WAIT_NEXT_INS;
+		}
 	}
 }
 

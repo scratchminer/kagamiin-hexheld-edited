@@ -30,7 +30,7 @@ extern pilot_decode_state *decode_state_;
 
 void decode_unreachable_ ();
 
-// Runs the invalid opcode exception reporting.
+// Runs the invalid opcode exception reporting
 void decode_invalid_opcode_ (Pilot_system *sys);
 
 // Queues in a word read from the fetch unit
