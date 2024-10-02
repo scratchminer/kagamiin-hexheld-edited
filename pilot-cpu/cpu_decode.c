@@ -157,7 +157,7 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 			core_op->operation = ALU_ADD;
 			core_op->srcs[0].location = DATA_REG_IMM_0_8;
 			core_op->srcs[1].location = DATA_ZERO;
-			core_op->src2_add1 = FALSE;
+			core_op->src2_add1 = TRUE;
 			core_op->src2_add_carry = FALSE;
 			core_op->src2_negate = TRUE;
 			core_op->flag_write_mask = 0;
@@ -317,6 +317,7 @@ decode_inst_bit_ (pilot_decode_state *state, uint16_t opcode)
 				break;
 			case 0x0080:
 				// RES imm, rm8
+				core_op->src2_add1 = TRUE;
 				core_op->src2_negate = TRUE;
 				core_op->operation = ALU_AND;
 				break;
@@ -353,6 +354,7 @@ decode_inst_bit_ (pilot_decode_state *state, uint16_t opcode)
 				break;
 			case 0x0080:
 				// RES M0, rm8
+				core_op->src2_add1 = TRUE;
 				core_op->src2_negate = TRUE;
 				core_op->operation = ALU_AND;
 				break;

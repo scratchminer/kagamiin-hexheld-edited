@@ -8,7 +8,6 @@ typedef int_fast8_t bool;
 #define FALSE 0
 
 typedef uint_fast8_t rm_spec;
-#define RM_NULL -1
 
 typedef enum
 {
@@ -288,7 +287,7 @@ typedef struct
 	{
 		BR_RELATIVE_SHORT,	// JR.S / CR.S
 		BR_MAR,			// JP rm24 / JEA / CALL rm24 / CEA (address is resolved and in MAR)
-		BR_HML,			// JP hml / JR.L / CALL hml / CR.L (deferred resolution)
+		BR_HML,			// JP hml / JR.L / CALL hml / CR.L (deferred resolution, since the specific type depends on bit 0 of HML)
 		BR_RESTART,		// RST
 		BR_BACKWARD,		// DJNZ
 	} branch_dest_type;

@@ -610,7 +610,7 @@ alu_modify_flags_ (pilot_execute_state *state, uint8_t flags, uint32_t operands[
 		alu_carry = (carries & 0x800000) != 0;
 		alu_sign = (result & 0x800000) != 0;
 		alu_overflow = ((operands[1] ^ result) & (operands[0] ^ result) & 0x800000) != 0;
-		alu_zero = (result) == 0;
+		alu_zero = result == 0;
 		alu_parity ^= (alu_parity >> 8) ^ (alu_parity >> 16);
 	}
 	alu_carry ^= state->control->invert_carries;
@@ -629,8 +629,8 @@ alu_modify_flags_ (pilot_execute_state *state, uint8_t flags, uint32_t operands[
 			state->sys->core.used_z = ((operands[0] & operands[1]) == 0);
 			break;
 		case FLAG_Z_SAVE:
-			state->sys->core.temp_z = (alu_zero != 0);
-			state->sys->core.used_z = (alu_zero != 0);
+			state->sys->core.temp_z = alu_zero;
+			state->sys->core.used_z = alu_zero;
 			break;
 		default:
 			execute_unreachable_();
@@ -919,6 +919,9 @@ pilot_execute_sequencer_branch_test (pilot_execute_state *state)
 			return TRUE;
 		case COND_DJNZ:
 			return !state->sys->core.temp_z;
+		default:
+			execute_unreachable_();
+			return FALSE;
 	}
 }
 
