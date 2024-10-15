@@ -39,8 +39,8 @@ typedef struct {
 		EXEC_HALF2_RESULT_LATCH,
 		EXEC_HALF2_MEM_PREPARE,
 		EXEC_HALF2_MEM_ASSERT,
+		EXEC_HALF2_ADVANCE_SEQUENCER,
 		
-		EXEC_ADVANCE_SEQUENCER,
 		EXEC_EXCEPTION
 	} execution_phase;
 	
@@ -433,18 +433,20 @@ execute_half1_mem_assert_ (pilot_execute_state *state)
 {
 	if (state->control->mem_latch_ctl == MEM_LATCH_HALF1 && !state->control->mem_access_suppress)
 	{
-		if (state->sys->interconnects.fetch_memory_backoff)
-		{
-			return;
-		}
 		if (state->control->mem_write_ctl == MEM_READ)
 		{
-			Pilot_mem_addr_read_assert(state->sys, state->control->is_16bit, state->mem_addr);
+			if (!Pilot_mem_addr_read_assert(state->sys, state->control->is_16bit, state->mem_addr))
+			{
+				return;
+			}
 			state->mem_access_was_read = TRUE;
 		}
 		else
 		{
-			Pilot_mem_addr_write_assert(state->sys, state->control->is_16bit, state->mem_addr, state->mem_data & 0xffff);
+			if (!Pilot_mem_addr_write_assert(state->sys, state->control->is_16bit, state->mem_addr, state->mem_data & 0xffff))
+			{
+				return;
+			}
 			state->mem_access_was_read = FALSE;
 		}
 		
@@ -456,6 +458,11 @@ execute_half1_mem_assert_ (pilot_execute_state *state)
 void
 pilot_execute_half1 (pilot_execute_state *state)
 {
+	if (state->sys->core.disable_clk)
+	{
+		return;
+	}
+	
 	if (state->execution_phase == EXEC_HALF1_READY)
 	{
 		state->execution_phase = EXEC_HALF1_MEM_WAIT;
@@ -817,50 +824,29 @@ execute_half2_mem_assert_ (pilot_execute_state *state)
 {
 	if (state->control->mem_latch_ctl >= MEM_LATCH_HALF2 && !state->control->mem_access_suppress)
 	{
-		if (state->sys->interconnects.fetch_memory_backoff)
-		{
-			return;
-		}
 		if (state->control->mem_write_ctl == MEM_READ)
 		{
-			Pilot_mem_addr_read_assert(state->sys, state->control->is_16bit, state->mem_addr);
+			if (!Pilot_mem_addr_read_assert(state->sys, state->control->is_16bit, state->mem_addr))
+			{
+				return;
+			}
 			state->mem_access_was_read = TRUE;
 		}
 		else
 		{
-			Pilot_mem_addr_write_assert(state->sys, state->control->is_16bit, state->mem_addr, state->mem_data & 0xffff);
+			if (!Pilot_mem_addr_write_assert(state->sys, state->control->is_16bit, state->mem_addr, state->mem_data & 0xffff))
+			{
+				return;
+			}
 		}
 		state->mem_access_waiting = TRUE;
 	}
-	state->execution_phase = EXEC_ADVANCE_SEQUENCER;
+	
+	state->execution_phase = EXEC_HALF2_ADVANCE_SEQUENCER;
 }
 
-void
-pilot_execute_half2 (pilot_execute_state *state)
-{
-	if (state->execution_phase == EXEC_HALF2_READY)
-	{
-		state->execution_phase = EXEC_HALF2_RESULT_LATCH;
-	}
-	
-	if (state->execution_phase == EXEC_HALF2_RESULT_LATCH)
-	{
-		execute_half2_result_latch_(state);
-	}
-	
-	if (state->execution_phase == EXEC_HALF2_MEM_PREPARE)
-	{
-		execute_half2_mem_prepare_(state);
-	}
-	
-	if (state->execution_phase == EXEC_HALF2_MEM_ASSERT)
-	{
-		execute_half2_mem_assert_(state);
-	}
-}
-
-bool
-pilot_execute_sequencer_mucode_run (pilot_execute_state *state)
+static bool
+execute_sequencer_mucode_run_ (pilot_execute_state *state)
 {
 	mucode_entry decoded;
 	
@@ -868,7 +854,6 @@ pilot_execute_sequencer_mucode_run (pilot_execute_state *state)
 	state->mucode_control = decoded.next;
 	state->mucode_decoded_buffer = decoded.operation;
 	state->control = &state->mucode_decoded_buffer;
-	state->sys->interconnects.execute_memory_backoff = (state->control->mem_latch_ctl != MEM_NO_LATCH && !state->control->mem_access_suppress);
 	
 	// Return TRUE if there's another microcode entry to be run
 	if (state->mucode_control.entry_idx != MU_NONE)
@@ -878,8 +863,8 @@ pilot_execute_sequencer_mucode_run (pilot_execute_state *state)
 	return FALSE;
 }
 
-bool
-pilot_execute_sequencer_branch_test (pilot_execute_state *state)
+static bool
+execute_sequencer_branch_test_ (pilot_execute_state *state)
 {
 	uint8_t flags = fetch_data_(state, DATA_REG_F);
 	bool overflow = (flags & F_OVERFLOW) != 0;
@@ -928,8 +913,8 @@ pilot_execute_sequencer_branch_test (pilot_execute_state *state)
 	}
 }
 
-void
-pilot_execute_sequencer_advance (pilot_execute_state *state)
+static void
+execute_half2_sequencer_advance_ (pilot_execute_state *state)
 {
 	if (state->sequencer_phase == EXEC_SEQ_CORE_OP_EXECUTED)
 	{
@@ -974,6 +959,11 @@ pilot_execute_sequencer_advance (pilot_execute_state *state)
 			state->sequencer_phase = EXEC_SEQ_REPEAT_REG_OP;
 			state->mucode_control = state->repeat_reg_type;
 		}
+		else if (state->decoded_inst.disable_clk)
+		{
+			state->sys->core.disable_clk = TRUE;
+			state->sequencer_phase = EXEC_SEQ_WAIT_NEXT_INS;
+		}
 		else
 		{
 			state->sequencer_phase = EXEC_SEQ_WAIT_NEXT_INS;
@@ -1013,7 +1003,7 @@ pilot_execute_sequencer_advance (pilot_execute_state *state)
 	
 	if (state->sequencer_phase == EXEC_SEQ_RUN_BEFORE)
 	{
-		if (!pilot_execute_sequencer_mucode_run(state))
+		if (!execute_sequencer_mucode_run_(state))
 		{
 			state->sequencer_phase = EXEC_SEQ_CORE_OP;
 		}
@@ -1021,15 +1011,13 @@ pilot_execute_sequencer_advance (pilot_execute_state *state)
 	
 	if (state->sequencer_phase == EXEC_SEQ_CORE_OP)
 	{
-		state->control = &state->decoded_inst.core_op;
-		state->sys->interconnects.execute_memory_backoff = (state->control->mem_latch_ctl != MEM_NO_LATCH && !state->control->mem_access_suppress);
-		
+		state->control = &state->decoded_inst.core_op;		
 		state->sequencer_phase = EXEC_SEQ_CORE_OP_EXECUTED;
 	}
 	
 	if (state->sequencer_phase == EXEC_SEQ_RUN_AFTER)
 	{
-		if (!pilot_execute_sequencer_mucode_run(state))
+		if (!execute_sequencer_mucode_run_(state))
 		{
 			state->sequencer_phase = EXEC_SEQ_FINAL_STEPS;
 		}
@@ -1037,7 +1025,7 @@ pilot_execute_sequencer_advance (pilot_execute_state *state)
 	
 	if (state->sequencer_phase == EXEC_SEQ_REPEAT_OP)
 	{
-		if (!pilot_execute_sequencer_mucode_run(state))
+		if (!execute_sequencer_mucode_run_(state))
 		{
 			if (state->sys->core.used_z)
 			{
@@ -1053,7 +1041,7 @@ pilot_execute_sequencer_advance (pilot_execute_state *state)
 	
 	if (state->sequencer_phase == EXEC_SEQ_REPEAT_REG_OP)
 	{
-		if (!pilot_execute_sequencer_mucode_run(state))
+		if (!execute_sequencer_mucode_run_(state))
 		{
 			if (state->sys->core.used_z)
 			{
@@ -1071,7 +1059,7 @@ pilot_execute_sequencer_advance (pilot_execute_state *state)
 	{
 		state->sys->interconnects.execute_branch = TRUE;
 		
-		if (pilot_execute_sequencer_branch_test(state))
+		if (execute_sequencer_branch_test_(state))
 		{
 			// branch according to state->decoded_inst.branch_dest_type
 		}
@@ -1082,3 +1070,37 @@ pilot_execute_sequencer_advance (pilot_execute_state *state)
 	}
 }
 
+void
+pilot_execute_half2 (pilot_execute_state *state)
+{
+	if (state->sys->core.disable_clk)
+	{
+		return;
+	}
+	
+	if (state->execution_phase == EXEC_HALF2_READY)
+	{
+		state->execution_phase = EXEC_HALF2_RESULT_LATCH;
+	}
+	
+	if (state->execution_phase == EXEC_HALF2_RESULT_LATCH)
+	{
+		execute_half2_result_latch_(state);
+	}
+	
+	if (state->execution_phase == EXEC_HALF2_MEM_PREPARE)
+	{
+		execute_half2_mem_prepare_(state);
+	}
+	
+	if (state->execution_phase == EXEC_HALF2_MEM_ASSERT)
+	{
+		execute_half2_mem_assert_(state);
+	}
+	
+	if (state->execution_phase == EXEC_HALF2_ADVANCE_SEQUENCER)
+	{
+		execute_half2_sequencer_advance_(state);
+		state->execution_phase = EXEC_HALF1_READY;
+	}
+}

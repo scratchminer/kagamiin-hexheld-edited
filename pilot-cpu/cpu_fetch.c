@@ -4,6 +4,11 @@
 void
 pilot_fetch_half1 (pilot_fetch_state *state)
 {
+	if (state->sys->core.disable_clk)
+	{
+		return;
+	}
+	
 	if (state->fetch_phase == FETCH_HALF1_READY)
 	{
 		for (int i = 4; i > 0; i--)
@@ -31,7 +36,6 @@ pilot_fetch_half1 (pilot_fetch_state *state)
 				return;
 			}
 			
-			state->sys->interconnects.fetch_memory_backoff = FALSE;
 			state->mem_access_waiting = FALSE;
 		}
 		
@@ -62,6 +66,11 @@ pilot_fetch_half1 (pilot_fetch_state *state)
 void
 pilot_fetch_half2 (pilot_fetch_state *state)
 {
+	if (state->sys->core.disable_clk)
+	{
+		return;
+	}
+	
 	if (state->fetch_phase == FETCH_HALF2_READY)
 	{
 		state->fetch_phase = FETCH_HALF2_BRANCH;
@@ -79,7 +88,7 @@ pilot_fetch_half2 (pilot_fetch_state *state)
 				state->queue_words_full[i] = FALSE;
 			}
 			
-			state->mem_addr = state->sys->interconnects.fetch_addr >> 1;
+			state->mem_addr = state->sys->interconnects.execute_branch_addr >> 1;
 			*execute_branch = FALSE;
 		}
 		
@@ -88,14 +97,11 @@ pilot_fetch_half2 (pilot_fetch_state *state)
 	
 	if (state->fetch_phase == FETCH_HALF2_MEM_ASSERT)
 	{
-		if (state->sys->interconnects.execute_memory_backoff)
+		if (!Pilot_mem_addr_read_assert(state->sys, TRUE, state->mem_addr << 1))
 		{
 			return;
 		}
 		
-		Pilot_mem_addr_read_assert(state->sys, TRUE, state->mem_addr << 1);
-		
-		state->sys->interconnects.fetch_memory_backoff = TRUE;
 		state->mem_access_waiting = TRUE;
 		
 		state->mem_addr++;

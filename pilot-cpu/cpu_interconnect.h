@@ -17,12 +17,6 @@ typedef struct
 	// Execute branch feedback
 	bool execute_branch;
 	uint32_t execute_branch_addr;
-	
-	// Goes high if the execute unit is going to access memory; tells the fetch unit to pre-emptively back off
-	bool execute_memory_backoff;
-	
-	// Goes high if the fetch unit is currently accessing memory; tells the execute unit to wait its turn
-	bool fetch_memory_backoff;
 } pilot_interconnect;
 
 #endif

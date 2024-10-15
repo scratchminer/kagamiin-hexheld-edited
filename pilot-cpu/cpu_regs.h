@@ -19,6 +19,9 @@ typedef struct {
 	
 	// used only for REPI / REPR to tell when to break
 	bool used_z;
+	
+	// used only for HALT to disable the clock until an interrupt or exception
+	bool disable_clk;
 } Pilot_cpu_regs;
 
 const enum

@@ -293,6 +293,9 @@ typedef struct
 	
 	// Offset of the second RM operand
 	uint8_t rm2_offset;
+	
+	// Disable the clock after this instruction
+	bool disable_clk;
 } inst_decoded_flags;
 
 #endif

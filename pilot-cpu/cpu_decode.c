@@ -341,7 +341,7 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 	return;
 }
 
-static void
+static inline void
 decode_inst_bit_ (pilot_decode_state *state, uint16_t opcode)
 {
 	execute_control_word *core_op = &state->work_regs.core_op;
@@ -479,7 +479,7 @@ decode_inst_bit_ (pilot_decode_state *state, uint16_t opcode)
 	return;
 }
 
-static void
+static inline void
 decode_inst_ld_other_ (pilot_decode_state *state, uint16_t opcode)
 {
 	execute_control_word *core_op = &state->work_regs.core_op;
@@ -626,11 +626,11 @@ decode_inst_arithlogic_ (pilot_decode_state *state, uint16_t opcode)
 		// from RM src
 		rm_spec rm = opcode & 0x003f;
 		decode_rm_specifier(state, rm, FALSE, FALSE, size);
-		state->work_regs.core_op.srcs[1].sign_extend = FALSE;
+		core_op->srcs[1].sign_extend = FALSE;
 		
-		state->work_regs.core_op.srcs[0].location = DATA_REG_IMM_0_8;
-		state->work_regs.core_op.srcs[0].size = size;
-		state->work_regs.core_op.srcs[0].sign_extend = FALSE;
+		core_op->srcs[0].location = DATA_REG_IMM_0_8;
+		core_op->srcs[0].size = size;
+		core_op->srcs[0].sign_extend = FALSE;
 		return;
 	}
 	else
@@ -638,21 +638,21 @@ decode_inst_arithlogic_ (pilot_decode_state *state, uint16_t opcode)
 		// from immediate src
 		rm_spec rm = opcode & 0x003f;
 		decode_rm_specifier(state, rm, TRUE, TRUE, size);
-		state->work_regs.core_op.srcs[0].sign_extend = FALSE;
+		core_op->srcs[0].sign_extend = FALSE;
 		
-		state->work_regs.core_op.srcs[1].location = DATA_LATCH_IMM_1;
-		state->work_regs.core_op.srcs[1].size = size;
-		state->work_regs.core_op.srcs[1].sign_extend = FALSE;
+		core_op->srcs[1].location = DATA_LATCH_IMM_1;
+		core_op->srcs[1].size = size;
+		core_op->srcs[1].sign_extend = FALSE;
 		
 		if (operation == 7)
 		{
-			state->work_regs.core_op.dest = DATA_ZERO;
+			core_op->dest = DATA_ZERO;
 		}
 		return;
 	}
 }
 
-static void
+static inline void
 decode_inst_ld_group_ (pilot_decode_state *state, uint16_t opcode)
 {
 	execute_control_word *core_op = &state->work_regs.core_op;
@@ -714,7 +714,7 @@ decode_inst_ld_group_ (pilot_decode_state *state, uint16_t opcode)
 	return;
 }
 
-static void
+static inline void
 decode_inst_other_ (pilot_decode_state *state, uint16_t opcode)
 {
 	execute_control_word *core_op = &state->work_regs.core_op;
@@ -737,7 +737,17 @@ decode_inst_other_ (pilot_decode_state *state, uint16_t opcode)
 	if (opcode == 0x0001)
 	{
 		// HALT
-		decode_not_implemented_();
+		core_op->srcs[0].location = DATA_ZERO;
+		core_op->srcs[0].size = size;
+		
+		core_op->srcs[1].location = DATA_ZERO;
+		core_op->srcs[1].size = size;
+		
+		core_op->operation = ALU_OR;
+		core_op->shifter_mode = SHIFTER_NONE;
+		core_op->dest = DATA_ZERO;
+		
+		state->work_regs.disable_clk = TRUE;
 		return;
 	}
 	if ((opcode & 0x8fc0) == 0x0100)
@@ -936,6 +946,7 @@ decode_inst_ (pilot_decode_state *state)
 	
 	inst_decoded_flags *work_regs = &state->work_regs;
 	work_regs->rm2_offset = 0;
+	work_regs->disable_clk = FALSE;
 	
 	uint16_t opcode = state->work_regs.imm_words[0];
 	
@@ -993,6 +1004,11 @@ decode_try_read_word_ (pilot_decode_state *state)
 void
 pilot_decode_half1 (pilot_decode_state *state)
 {
+	if (state->sys->core.disable_clk)
+	{
+		return;
+	}
+	
 	if (state->decoding_phase == DECODER_HALF1_DISPATCH_WAIT)
 	{
 		bool *decoded_inst_semaph = &state->sys->interconnects.decoded_inst_semaph;
@@ -1026,6 +1042,11 @@ pilot_decode_half1 (pilot_decode_state *state)
 void
 pilot_decode_half2 (pilot_decode_state *state)
 {
+	if (state->sys->core.disable_clk)
+	{
+		return;
+	}
+	
 	if (state->decoding_phase == DECODER_HALF2_READ_OPERANDS)
 	{
 		if (state->words_to_read > 0)

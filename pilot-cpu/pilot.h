@@ -9,8 +9,7 @@ typedef enum
 {
 	MCTL_READY = 0,
 	MCTL_MEM_R_BUSY,
-	MCTL_MEM_W_BUSY,
-	MCTL_DATA_LATCHED
+	MCTL_MEM_W_BUSY
 } Pilot_memctl_state;
 
 typedef struct
