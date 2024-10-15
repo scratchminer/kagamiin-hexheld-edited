@@ -1010,6 +1010,8 @@ pilot_decode_half1 (pilot_decode_state *state)
 	
 	if (state->decoding_phase == DECODER_HALF1_READ_INST_WORD)
 	{
+		state->work_regs.inst_pgc = state->sys->interconnects.fetch_addr;
+		
 		bool read_ok = decode_try_read_word_(state);
 		if (read_ok)
 		{
@@ -1043,8 +1045,6 @@ pilot_decode_half2 (pilot_decode_state *state)
 	
 	if (state->decoding_phase == DECODER_HALF2_DISPATCH)
 	{
-		state->work_regs.inst_pgc = state->sys->interconnects.fetch_addr;
-		
 		inst_decoded_flags *decoded_inst = state->sys->interconnects.decoded_inst;
 		*decoded_inst = state->work_regs;
 		

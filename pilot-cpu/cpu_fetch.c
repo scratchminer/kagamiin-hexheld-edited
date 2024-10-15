@@ -99,6 +99,7 @@ pilot_fetch_half2 (pilot_fetch_state *state)
 		state->mem_access_waiting = TRUE;
 		
 		state->mem_addr++;
+		state->sys->interconnects.fetch_addr = state->mem_addr << 1;
 		
 		state->fetch_phase = FETCH_HALF1_READY;
 	}

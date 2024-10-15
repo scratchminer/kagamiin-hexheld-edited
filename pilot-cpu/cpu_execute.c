@@ -987,6 +987,8 @@ pilot_execute_sequencer_advance (pilot_execute_state *state)
 			state->decoded_inst = *state->sys->interconnects.decoded_inst;
 			state->sys->interconnects.decoded_inst_semaph = FALSE;
 			state->sequencer_phase = EXEC_SEQ_EVAL_CONTROL;
+			
+			write_data_(state, DATA_REG_PGC, &state->decoded_inst.inst_pgc);
 		}
 	}
 	
