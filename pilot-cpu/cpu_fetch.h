@@ -26,4 +26,7 @@ typedef struct {
 	} fetch_phase;
 } pilot_fetch_state;
 
+void pilot_fetch_half1 (pilot_fetch_state *state);
+void pilot_fetch_half2 (pilot_fetch_state *state);
+
 #endif

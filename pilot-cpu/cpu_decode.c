@@ -1,5 +1,6 @@
 #include "cpu_regs.h"
 #include "cpu_decode.h"
+#include "cpu_decode_rm.h"
 #include "memory.h"
 
 /*
@@ -84,9 +85,6 @@
 // Placeholder
 void decode_not_implemented_ ();
 
-// Decodes an RM specifier.
-void decode_rm_specifier (pilot_decode_state *state, rm_spec rm, bool is_dest, bool src_is_left, data_size_spec size);
-
 static inline void
 decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 {
@@ -107,6 +105,9 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 		{
 			decode_invalid_opcode_(state->sys);
 		}
+		
+		core_op->operation = ALU_OFF;
+		core_op->srcs[0].size = SIZE_8_BIT;
 		
 		work_regs->branch = TRUE;
 		work_regs->branch_cond = COND_ALWAYS_CALL;
@@ -152,8 +153,6 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 			}
 			
 			core_op->operation = ALU_OR;
-			core_op->shifter_mode = SHIFTER_NONE;
-			
 			core_op->srcs[0].location = DATA_ZERO;
 			core_op->srcs[1].location = DATA_LATCH_IMM_0;
 			core_op->srcs[1].size = SIZE_8_BIT;
@@ -165,6 +164,8 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 			core_op->flag_v_mode = FLAG_V_NORMAL;
 			core_op->flag_z_mode = FLAG_Z_NORMAL;
 			core_op->dest = DATA_LATCH_REPR;
+			
+			core_op->shifter_mode = SHIFTER_NONE;
 			
 			repeat_op->entry_idx = MU_REPR;
 			
@@ -180,6 +181,7 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 			
 			core_op->operation = ALU_ADD;
 			core_op->srcs[0].location = DATA_REG_IMM_0_8;
+			core_op->srcs[0].size = SIZE_24_BIT;
 			core_op->srcs[1].location = DATA_ZERO;
 			core_op->src2_add1 = TRUE;
 			core_op->src2_add_carry = FALSE;
@@ -216,6 +218,7 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 		
 		core_op->operation = ALU_ADD;
 		core_op->srcs[0].location = DATA_REG_PGC;
+		core_op->srcs[0].size = SIZE_24_BIT;
 		core_op->srcs[1].location = DATA_LATCH_IMM_0;
 		core_op->srcs[1].size = SIZE_8_BIT;
 		core_op->srcs[1].sign_extend = TRUE;
@@ -244,7 +247,14 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 			}
 			
 			decode_queue_read_word(state);
+			
 			core_op->operation = ALU_OFF;
+			core_op->srcs[0].size = SIZE_24_BIT;
+			core_op->shifter_mode = SHIFTER_NONE;
+			
+			run_after->entry_idx = MU_IND_PGC_WITH_HML;
+			run_after->mem_access_suppress = TRUE;
+			
 			work_regs->branch = TRUE;
 			work_regs->branch_cond = COND_ALWAYS;
 			work_regs->branch_dest_type = BR_HML;
@@ -260,7 +270,14 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 			}
 			
 			decode_queue_read_word(state);
+			
 			core_op->operation = ALU_OFF;
+			core_op->srcs[0].size = SIZE_24_BIT;
+			core_op->shifter_mode = SHIFTER_NONE;
+			
+			run_after->entry_idx = MU_IND_PGC_WITH_HML;
+			run_after->mem_access_suppress = TRUE;
+			
 			work_regs->branch = TRUE;
 			work_regs->branch_cond = COND_ALWAYS_CALL;
 			work_regs->branch_dest_type = BR_HML;
@@ -989,7 +1006,7 @@ decode_queue_read_word (pilot_decode_state *state)
 	state->words_to_read++;
 }
 
-bool
+static bool
 decode_try_read_word_ (pilot_decode_state *state)
 {
 	bool *fetch_word_semaph = &state->sys->interconnects.fetch_word_semaph;

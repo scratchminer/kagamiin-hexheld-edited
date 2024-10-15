@@ -1,65 +1,9 @@
 #include "cpu_regs.h"
 #include "cpu_decode.h"
 #include "cpu_execute.h"
+#include "cpu_mucode.h"
 #include "memory.h"
 #include "types.h"
-
-typedef struct {
-	Pilot_system *sys;
-	
-	inst_decoded_flags decoded_inst;
-	mucode_entry_spec mucode_control;
-	execute_control_word mucode_decoded_buffer;
-	execute_control_word *control;
-	mucode_entry_spec repeat_type;
-	mucode_entry_spec repeat_reg_type;
-	
-	uint32_t alu_input_latches[2];
-	uint32_t alu_output_latch;
-	bool alu_shifter_carry_bit;
-	
-	// Memory address and data registers for requesting memory accesses
-	uint32_t mem_addr;
-	uint32_t mem_data;
-	
-	// When reading memory, this flag will be high until the memory access has been completed.
-	// During this time, any reads from mem_data will block until this flag goes low.
-	bool mem_access_waiting;
-	bool mem_access_was_read;
-	
-	enum
-	{
-		EXEC_HALF1_READY,
-		EXEC_HALF1_MEM_WAIT,
-		EXEC_HALF1_OPERAND_LATCH,
-		EXEC_HALF1_MEM_PREPARE,
-		EXEC_HALF1_MEM_ASSERT,
-		
-		EXEC_HALF2_READY,
-		EXEC_HALF2_RESULT_LATCH,
-		EXEC_HALF2_MEM_PREPARE,
-		EXEC_HALF2_MEM_ASSERT,
-		EXEC_HALF2_ADVANCE_SEQUENCER,
-		
-		EXEC_EXCEPTION
-	} execution_phase;
-	
-	enum
-	{
-		EXEC_SEQ_WAIT_NEXT_INS,
-		EXEC_SEQ_WAIT_CACHED_INS,
-		EXEC_SEQ_EVAL_CONTROL,
-		EXEC_SEQ_RUN_BEFORE,
-		EXEC_SEQ_CORE_OP,
-		EXEC_SEQ_CORE_OP_EXECUTED,
-		EXEC_SEQ_RUN_AFTER,
-		EXEC_SEQ_REPEAT_OP,
-		EXEC_SEQ_REPEAT_REG_OP,
-		EXEC_SEQ_FINAL_STEPS,
-		EXEC_SEQ_SIGNAL_BRANCH,
-		EXEC_SEQ_BRANCH_OP
-	} sequencer_phase;
-} pilot_execute_state;
 
 void execute_unreachable_ ();
 
@@ -913,8 +857,36 @@ execute_sequencer_branch_test_ (pilot_execute_state *state)
 	}
 }
 
+static uint32_t
+execute_sequencer_branch_addr_ (pilot_execute_state *state)
+{
+	switch (state->decoded_inst.branch_dest_type)
+	{
+		case BR_MAR:
+			return fetch_data_(state, DATA_LATCH_MEM_ADDR);
+		case BR_HML:
+		{
+			uint32_t hml = fetch_data_(state, DATA_LATCH_IMM_HML);
+			if ((hml & 0x1) == 0)
+			{
+				return hml;
+			}
+			else
+			{
+				// the relative PC address is precalculated in run_after so we don't have to do it here
+				return fetch_data_(state, DATA_LATCH_MEM_DATA);
+			}
+		}
+		case BR_RESTART:
+			return 0xffd000 | (fetch_data_(state, DATA_LATCH_IMM_0) << 4);
+		default:
+			execute_unreachable_();
+			return 0;
+	}
+}
+
 static void
-execute_half2_sequencer_advance_ (pilot_execute_state *state)
+execute_half2_advance_sequencer_ (pilot_execute_state *state)
 {
 	if (state->sequencer_phase == EXEC_SEQ_CORE_OP_EXECUTED)
 	{
@@ -1061,7 +1033,8 @@ execute_half2_sequencer_advance_ (pilot_execute_state *state)
 		
 		if (execute_sequencer_branch_test_(state))
 		{
-			// branch according to state->decoded_inst.branch_dest_type
+			state->sys->interconnects.execute_branch_addr = execute_sequencer_branch_addr_(state);
+			state->sys->interconnects.execute_branch = TRUE;
 		}
 		else
 		{
@@ -1100,7 +1073,7 @@ pilot_execute_half2 (pilot_execute_state *state)
 	
 	if (state->execution_phase == EXEC_HALF2_ADVANCE_SEQUENCER)
 	{
-		execute_half2_sequencer_advance_(state);
+		execute_half2_advance_sequencer_(state);
 		state->execution_phase = EXEC_HALF1_READY;
 	}
 }

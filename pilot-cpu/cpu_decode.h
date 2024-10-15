@@ -34,7 +34,7 @@ void decode_invalid_opcode_ (Pilot_system *sys);
 // Queues in a word read from the fetch unit
 void decode_queue_read_word (pilot_decode_state *state);
 
-// Tries to actually read a word from the fetch unit
-bool decode_try_read_word_ (pilot_decode_state *state);
+void pilot_decode_half1 (pilot_decode_state *state);
+void pilot_decode_half2 (pilot_decode_state *state);
 
 #endif
