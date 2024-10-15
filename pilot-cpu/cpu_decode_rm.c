@@ -19,6 +19,12 @@ decode_rm_specifier (pilot_decode_state *state, rm_spec rm, bool is_dest, bool s
 	
 	state->rm_ops++;
 	
+	if (state->rm_ops == 2)
+	{
+		state->rm2_offset = state->inst_length;
+		run_mucode->reg_select |= 0x10;
+	}
+	
 	if (src_is_left)
 	{
 		src_affected = &state->work_regs.core_op.srcs[0];
@@ -151,11 +157,6 @@ decode_rm_specifier (pilot_decode_state *state, rm_spec rm, bool is_dest, bool s
 		// Register direct
 		uint8_t reg = (rm >> 2) & 0x7;
 		src_affected->location = (size == SIZE_8_BIT) ? DATA_REG_L0 + reg : DATA_REG_P0 + reg;
-	}
-	
-	if (state->rm_ops == 2)
-	{
-		run_mucode->reg_select |= 0x10;
 	}
 	
 	return;

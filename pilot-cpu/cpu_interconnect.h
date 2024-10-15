@@ -7,7 +7,8 @@ typedef struct
 {
 	// Fetch-decode interface
 	bool fetch_word_semaph;
-	bool fetch_branch;
+	uint32_t fetch_addr;
+	uint16_t fetch_word;
 	
 	// Decode-execute interface
 	bool decoded_inst_semaph;

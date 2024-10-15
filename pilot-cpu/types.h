@@ -34,6 +34,7 @@ typedef enum
 	MU_IND_REG_WITH_BITS,
 	MU_IND_PGC_WITH_IMM,
 	MU_IND_PGC_WITH_IMM_RM,
+	MU_IND_PGC_WITH_IMM_SHIFT,
 	MU_IND_PGC_WITH_HML,
 	MU_IND_PGC_WITH_HML_RM,
 	
@@ -285,15 +286,10 @@ typedef struct
 	
 	enum
 	{
-		BR_RELATIVE_SHORT,	// JR.S / CR.S
-		BR_MAR,			// JP rm24 / JEA / CALL rm24 / CEA (address is resolved and in MAR)
+		BR_MAR,			// JR.S / CR.S / JP rm24 / JEA / CALL rm24 / CEA / DJNZ (address is resolved and in MAR)
 		BR_HML,			// JP hml / JR.L / CALL hml / CR.L (deferred resolution, since the specific type depends on bit 0 of HML)
 		BR_RESTART,		// RST
-		BR_BACKWARD,		// DJNZ
 	} branch_dest_type;
-	
-	// Offset of the second RM operand
-	uint8_t rm2_offset;
 } inst_decoded_flags;
 
 #endif

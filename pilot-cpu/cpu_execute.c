@@ -12,6 +12,7 @@ typedef struct {
 	execute_control_word mucode_decoded_buffer;
 	execute_control_word *control;
 	mucode_entry_spec repeat_type;
+	mucode_entry_spec repeat_reg_type;
 	
 	uint32_t alu_input_latches[2];
 	uint32_t alu_output_latch;
@@ -53,8 +54,10 @@ typedef struct {
 		EXEC_SEQ_CORE_OP_EXECUTED,
 		EXEC_SEQ_RUN_AFTER,
 		EXEC_SEQ_REPEAT_OP,
+		EXEC_SEQ_REPEAT_REG_OP,
 		EXEC_SEQ_FINAL_STEPS,
 		EXEC_SEQ_SIGNAL_BRANCH,
+		EXEC_SEQ_BRANCH_OP
 	} sequencer_phase;
 } pilot_execute_state;
 
@@ -444,6 +447,7 @@ execute_half1_mem_assert_ (pilot_execute_state *state)
 				return;
 			}
 		}
+		
 		state->mem_access_waiting = TRUE;
 	}
 	state->execution_phase = EXEC_HALF2_READY;
@@ -866,6 +870,7 @@ pilot_execute_sequencer_mucode_run (pilot_execute_state *state)
 	state->mucode_control = decoded.next;
 	state->mucode_decoded_buffer = decoded.operation;
 	state->control = &state->mucode_decoded_buffer;
+	state->sys->interconnects.execute_memory_backoff = (state->control->mem_latch_ctl != MEM_NO_LATCH && !state->control->mem_access_suppress);
 	
 	// Return TRUE if there's another microcode entry to be run
 	if (state->mucode_control.entry_idx != MU_NONE)
@@ -940,7 +945,7 @@ pilot_execute_sequencer_advance (pilot_execute_state *state)
 			state->sequencer_phase = EXEC_SEQ_FINAL_STEPS;
 		}
 	}
-
+	
 	if (state->sequencer_phase == EXEC_SEQ_FINAL_STEPS)
 	{
 		if (state->decoded_inst.branch)
@@ -951,13 +956,25 @@ pilot_execute_sequencer_advance (pilot_execute_state *state)
 		{
 			state->sequencer_phase = EXEC_SEQ_WAIT_NEXT_INS;
 			
-			state->repeat_type = state->decoded_inst.repeat_op;
+			if (state->decoded_inst.repeat_op.entry_idx == MU_REPR)
+			{
+				state->repeat_reg_type = state->decoded_inst.repeat_op;
+			}
+			else
+			{
+				state->repeat_type = state->decoded_inst.repeat_op;
+			}
 			state->decoded_inst.repeat_op.entry_idx = MU_NONE;
 		}
 		else if (state->repeat_type.entry_idx != MU_NONE)
 		{
 			state->sequencer_phase = EXEC_SEQ_REPEAT_OP;
 			state->mucode_control = state->repeat_type;
+		}
+		else if (state->repeat_reg_type.entry_idx != MU_NONE)
+		{
+			state->sequencer_phase = EXEC_SEQ_REPEAT_REG_OP;
+			state->mucode_control = state->repeat_reg_type;
 		}
 		else
 		{
@@ -1005,6 +1022,8 @@ pilot_execute_sequencer_advance (pilot_execute_state *state)
 	if (state->sequencer_phase == EXEC_SEQ_CORE_OP)
 	{
 		state->control = &state->decoded_inst.core_op;
+		state->sys->interconnects.execute_memory_backoff = (state->control->mem_latch_ctl != MEM_NO_LATCH && !state->control->mem_access_suppress);
+		
 		state->sequencer_phase = EXEC_SEQ_CORE_OP_EXECUTED;
 	}
 	
@@ -1023,6 +1042,22 @@ pilot_execute_sequencer_advance (pilot_execute_state *state)
 			if (state->sys->core.used_z)
 			{
 				state->repeat_type.entry_idx = MU_NONE;
+				state->sequencer_phase = EXEC_SEQ_FINAL_STEPS;
+			}
+			else
+			{
+				state->sequencer_phase = EXEC_SEQ_WAIT_CACHED_INS;
+			}
+		}
+	}
+	
+	if (state->sequencer_phase == EXEC_SEQ_REPEAT_REG_OP)
+	{
+		if (!pilot_execute_sequencer_mucode_run(state))
+		{
+			if (state->sys->core.used_z)
+			{
+				state->repeat_reg_type.entry_idx = MU_NONE;
 				state->sequencer_phase = EXEC_SEQ_FINAL_STEPS;
 			}
 			else

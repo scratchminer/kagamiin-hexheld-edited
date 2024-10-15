@@ -93,11 +93,22 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 {
 	inst_decoded_flags *work_regs = &state->work_regs;
 	execute_control_word *core_op = &work_regs->core_op;
+	mucode_entry_spec *run_after = &work_regs->run_after;
 	mucode_entry_spec *repeat_op = &work_regs->repeat_op;
+	
+	if (repeat_op->entry_idx != MU_NONE && repeat_op->entry_idx != MU_REPR)
+	{
+		decode_invalid_opcode_(state->sys);
+	}
 	
 	if ((opcode & 0xff00) == 0xff00)
 	{
 		// RST
+		if (repeat_op->entry_idx != MU_NONE)
+		{
+			decode_invalid_opcode_(state->sys);
+		}
+		
 		work_regs->branch = TRUE;
 		work_regs->branch_cond = COND_ALWAYS_CALL;
 		work_regs->branch_dest_type = BR_RESTART;
@@ -106,10 +117,16 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 	if ((opcode & 0xffe0) == 0xfe00)
 	{
 		// REPI
-		core_op->operation = ALU_OR;
-		core_op->shifter_mode = SHIFTER_NONE;
+		if (repeat_op->entry_idx != MU_NONE)
+		{
+			decode_invalid_opcode_(state->sys);
+		}
 		
+		core_op->operation = ALU_OR;
 		core_op->srcs[0].location = DATA_ZERO;
+		core_op->srcs[1].location = DATA_LATCH_IMM_0;
+		core_op->srcs[1].size = SIZE_8_BIT;
+		core_op->srcs[1].sign_extend = FALSE;
 		core_op->src2_add1 = TRUE;
 		core_op->src2_add_carry = FALSE;
 		core_op->src2_negate = FALSE;
@@ -117,9 +134,8 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 		core_op->flag_v_mode = FLAG_V_NORMAL;
 		core_op->flag_z_mode = FLAG_Z_SAVE;
 		
-		core_op->srcs[1].location = DATA_LATCH_IMM_0;
-		core_op->srcs[1].size = SIZE_8_BIT;
-		core_op->srcs[1].sign_extend = FALSE;
+		core_op->shifter_mode = SHIFTER_NONE;
+		
 		core_op->dest = DATA_LATCH_REPI;
 		
 		repeat_op->entry_idx = MU_REPI;
@@ -131,20 +147,24 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 		if ((opcode & 0x00ff) == 0x0000)
 		{
 			// REPR
+			if (repeat_op->entry_idx != MU_NONE)
+			{
+				decode_invalid_opcode_(state->sys);
+			}
+			
 			core_op->operation = ALU_OR;
 			core_op->shifter_mode = SHIFTER_NONE;
 			
 			core_op->srcs[0].location = DATA_ZERO;
+			core_op->srcs[1].location = DATA_LATCH_IMM_0;
+			core_op->srcs[1].size = SIZE_8_BIT;
+			core_op->srcs[1].sign_extend = FALSE;
 			core_op->src2_add1 = FALSE;
 			core_op->src2_add_carry = FALSE;
 			core_op->src2_negate = FALSE;
 			core_op->flag_write_mask = 0;
 			core_op->flag_v_mode = FLAG_V_NORMAL;
 			core_op->flag_z_mode = FLAG_Z_NORMAL;
-			
-			core_op->srcs[1].location = DATA_LATCH_IMM_0;
-			core_op->srcs[1].size = SIZE_8_BIT;
-			core_op->srcs[1].sign_extend = FALSE;
 			core_op->dest = DATA_LATCH_REPR;
 			
 			repeat_op->entry_idx = MU_REPR;
@@ -154,6 +174,11 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 		else if ((opcode & 0x0080) == 0x0080)
 		{
 			// DJNZ
+			if (repeat_op->entry_idx != MU_NONE)
+			{
+				decode_invalid_opcode_(state->sys);
+			}
+			
 			core_op->operation = ALU_ADD;
 			core_op->srcs[0].location = DATA_REG_IMM_0_8;
 			core_op->srcs[1].location = DATA_ZERO;
@@ -167,9 +192,11 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 			
 			core_op->shifter_mode = SHIFTER_NONE;
 			
+			run_after->entry_idx = MU_IND_PGC_WITH_IMM_SHIFT;
+			
 			work_regs->branch = TRUE;
 			work_regs->branch_cond = COND_DJNZ;
-			work_regs->branch_dest_type = BR_BACKWARD;
+			work_regs->branch_dest_type = BR_MAR;
 			
 			return;
 		}
@@ -183,33 +210,71 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 	if ((opcode & 0xf000) == 0xe000)
 	{
 		// JR cond / JR.S / CR.S
-		core_op->operation = ALU_OFF;
+		if (repeat_op->entry_idx != MU_NONE)
+		{
+			decode_invalid_opcode_(state->sys);
+		}
+		
+		core_op->operation = ALU_ADD;
+		core_op->srcs[0].location = DATA_REG_PGC;
+		core_op->srcs[1].location = DATA_LATCH_IMM_0;
+		core_op->srcs[1].size = SIZE_8_BIT;
+		core_op->srcs[1].sign_extend = TRUE;
+		core_op->src2_add1 = FALSE;
+		core_op->src2_add_carry = FALSE;
+		core_op->src2_negate = FALSE;
+		core_op->dest = DATA_LATCH_MEM_ADDR;
+		
+		core_op->shifter_mode = SHIFTER_LEFT;
+		
+		core_op->mem_latch_ctl = MEM_NO_LATCH;
+		
 		work_regs->branch = TRUE;
 		work_regs->branch_cond = (opcode >> 8) & 0xf;
-		work_regs->branch_dest_type = BR_RELATIVE_SHORT;
+		work_regs->branch_dest_type = BR_MAR;
 	}
 	
 	switch (opcode & 0x0700)
 	{
 		case 0x0000:
+		{
 			// JP / JR.L
+			if (repeat_op->entry_idx != MU_NONE)
+			{
+				decode_invalid_opcode_(state->sys);
+			}
+			
 			decode_queue_read_word(state);
 			core_op->operation = ALU_OFF;
 			work_regs->branch = TRUE;
 			work_regs->branch_cond = COND_ALWAYS;
 			work_regs->branch_dest_type = BR_HML;
+			
 			return;
+		}
 		case 0x0100:
+		{
 			// CALL / CR.L
+			if (repeat_op->entry_idx != MU_NONE)
+			{
+				decode_invalid_opcode_(state->sys);
+			}
+			
 			decode_queue_read_word(state);
 			core_op->operation = ALU_OFF;
 			work_regs->branch = TRUE;
-			work_regs->branch_cond = COND_ALWAYS;
+			work_regs->branch_cond = COND_ALWAYS_CALL;
 			work_regs->branch_dest_type = BR_HML;
 			return;
+		}
 		case 0x0200:
 		{
 			rm_spec rm_src = opcode & 0x3f;
+			
+			if (repeat_op->entry_idx != MU_NONE)
+			{
+				decode_invalid_opcode_(state->sys);
+			}
 			
 			switch (opcode & 0x01c0)
 			{
@@ -869,6 +934,7 @@ static void
 decode_inst_ (pilot_decode_state *state)
 {
 	state->rm_ops = 0;
+	state->rm2_offset = 0;
 	uint16_t opcode = state->work_regs.imm_words[0];
 	
 	if ((opcode & 0xf000) >= 0xe000)
@@ -908,6 +974,20 @@ decode_queue_read_word (pilot_decode_state *state)
 {
 	state->inst_length++;
 	state->words_to_read++;
+}
+
+bool
+decode_try_read_word_ (pilot_decode_state *state)
+{
+	bool *fetch_word_semaph = &state->sys->interconnects.fetch_word_semaph;
+	if (*fetch_word_semaph) {
+		state->work_regs.imm_words[state->inst_length] = state->sys->interconnects.fetch_word;
+		*fetch_word_semaph = FALSE;
+		
+		return TRUE;
+	}
+	
+	return FALSE;
 }
 
 void
@@ -963,9 +1043,14 @@ pilot_decode_half2 (pilot_decode_state *state)
 	
 	if (state->decoding_phase == DECODER_HALF2_DISPATCH)
 	{
-		state->work_regs.inst_pgc = state->pgc;
+		state->work_regs.inst_pgc = state->sys->interconnects.fetch_addr;
+		
+		inst_decoded_flags *decoded_inst = state->sys->interconnects.decoded_inst;
+		*decoded_inst = state->work_regs;
+		
 		bool *decoded_inst_semaph = &state->sys->interconnects.decoded_inst_semaph;
 		*decoded_inst_semaph = TRUE;
+		
 		state->decoding_phase = DECODER_HALF1_DISPATCH_WAIT;
 	}
 }
