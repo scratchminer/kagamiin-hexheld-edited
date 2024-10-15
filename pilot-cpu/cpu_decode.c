@@ -1045,6 +1045,8 @@ pilot_decode_half2 (pilot_decode_state *state)
 	
 	if (state->decoding_phase == DECODER_HALF2_DISPATCH)
 	{
+		state->work_regs.inst_pgc = state->sys->interconnects.fetch_addr;
+		
 		inst_decoded_flags *decoded_inst = state->sys->interconnects.decoded_inst;
 		*decoded_inst = state->work_regs;
 		
