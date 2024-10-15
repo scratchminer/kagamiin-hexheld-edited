@@ -107,7 +107,7 @@ mem_write (Pilot_system *sys)
  * Tick 0: Pilot_mem_addr_write_assert - assert the address to be accessed
  * 
  */
-bool
+void
 Pilot_mem_addr_read_assert (Pilot_system *sys, bool is_16bit, uint32_t addr)
 {
 	if (sys->memctl.state == MCTL_READY)
@@ -116,11 +116,9 @@ Pilot_mem_addr_read_assert (Pilot_system *sys, bool is_16bit, uint32_t addr)
 		sys->memctl.is_16bit = is_16bit;
 		sys->memctl.state = MCTL_MEM_R_BUSY;
 	}
-	
-	return FALSE;
 }
 
-bool
+void
 Pilot_mem_addr_write_assert (Pilot_system *sys, bool is_16bit, uint32_t addr, uint16_t data)
 {
 	if (sys->memctl.state == MCTL_READY)
@@ -130,8 +128,6 @@ Pilot_mem_addr_write_assert (Pilot_system *sys, bool is_16bit, uint32_t addr, ui
 		sys->memctl.is_16bit = is_16bit;
 		sys->memctl.state = MCTL_MEM_W_BUSY;
 	}
-	
-	return FALSE;
 }
 
 bool

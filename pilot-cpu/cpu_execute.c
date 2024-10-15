@@ -419,6 +419,7 @@ execute_half1_mem_prepare_ (pilot_execute_state *state)
 					break;
 				case MEM_WRITE_FROM_MDR_HIGH:
 					state->mem_data = (state->mem_data >> 16) & 0xff;
+					break;
 				default:
 					execute_unreachable_();
 			}
@@ -432,20 +433,19 @@ execute_half1_mem_assert_ (pilot_execute_state *state)
 {
 	if (state->control->mem_latch_ctl == MEM_LATCH_HALF1 && !state->control->mem_access_suppress)
 	{
+		if (state->sys->interconnects.fetch_memory_backoff)
+		{
+			return;
+		}
 		if (state->control->mem_write_ctl == MEM_READ)
 		{
-			if (!Pilot_mem_addr_read_assert(state->sys, state->control->is_16bit, state->mem_addr))
-			{
-				return;
-			}
+			Pilot_mem_addr_read_assert(state->sys, state->control->is_16bit, state->mem_addr);
 			state->mem_access_was_read = TRUE;
 		}
 		else
 		{
-			if (!Pilot_mem_addr_write_assert(state->sys, state->control->is_16bit, state->mem_addr, state->mem_data & 0xffff))
-			{
-				return;
-			}
+			Pilot_mem_addr_write_assert(state->sys, state->control->is_16bit, state->mem_addr, state->mem_data & 0xffff);
+			state->mem_access_was_read = FALSE;
 		}
 		
 		state->mem_access_waiting = TRUE;
@@ -817,20 +817,18 @@ execute_half2_mem_assert_ (pilot_execute_state *state)
 {
 	if (state->control->mem_latch_ctl >= MEM_LATCH_HALF2 && !state->control->mem_access_suppress)
 	{
+		if (state->sys->interconnects.fetch_memory_backoff)
+		{
+			return;
+		}
 		if (state->control->mem_write_ctl == MEM_READ)
 		{
-			if (!Pilot_mem_addr_read_assert(state->sys, state->control->is_16bit, state->mem_addr))
-			{
-				return;
-			}
+			Pilot_mem_addr_read_assert(state->sys, state->control->is_16bit, state->mem_addr);
 			state->mem_access_was_read = TRUE;
 		}
 		else
 		{
-			if (!Pilot_mem_addr_write_assert(state->sys, state->control->is_16bit, state->mem_addr, state->mem_data & 0xffff))
-			{
-				return;
-			}
+			Pilot_mem_addr_write_assert(state->sys, state->control->is_16bit, state->mem_addr, state->mem_data & 0xffff);
 		}
 		state->mem_access_waiting = TRUE;
 	}
@@ -1069,6 +1067,8 @@ pilot_execute_sequencer_advance (pilot_execute_state *state)
 	
 	if (state->sequencer_phase == EXEC_SEQ_SIGNAL_BRANCH)
 	{
+		state->sys->interconnects.execute_branch = TRUE;
+		
 		if (pilot_execute_sequencer_branch_test(state))
 		{
 			// branch according to state->decoded_inst.branch_dest_type

@@ -1,7 +1,6 @@
 #include "cpu_regs.h"
 #include "cpu_decode.h"
 #include "memory.h"
-#include <stdint.h>
 
 /*
  * Pipeline stages:
@@ -934,7 +933,10 @@ static void
 decode_inst_ (pilot_decode_state *state)
 {
 	state->rm_ops = 0;
-	state->rm2_offset = 0;
+	
+	inst_decoded_flags *work_regs = &state->work_regs;
+	work_regs->rm2_offset = 0;
+	
 	uint16_t opcode = state->work_regs.imm_words[0];
 	
 	if ((opcode & 0xf000) >= 0xe000)
@@ -982,8 +984,6 @@ decode_try_read_word_ (pilot_decode_state *state)
 	bool *fetch_word_semaph = &state->sys->interconnects.fetch_word_semaph;
 	if (*fetch_word_semaph) {
 		state->work_regs.imm_words[state->inst_length] = state->sys->interconnects.fetch_word;
-		*fetch_word_semaph = FALSE;
-		
 		return TRUE;
 	}
 	
@@ -1048,8 +1048,7 @@ pilot_decode_half2 (pilot_decode_state *state)
 		inst_decoded_flags *decoded_inst = state->sys->interconnects.decoded_inst;
 		*decoded_inst = state->work_regs;
 		
-		bool *decoded_inst_semaph = &state->sys->interconnects.decoded_inst_semaph;
-		*decoded_inst_semaph = TRUE;
+		state->sys->interconnects.decoded_inst_semaph = TRUE;
 		
 		state->decoding_phase = DECODER_HALF1_DISPATCH_WAIT;
 	}

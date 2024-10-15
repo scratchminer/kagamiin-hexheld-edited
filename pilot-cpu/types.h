@@ -290,6 +290,9 @@ typedef struct
 		BR_HML,			// JP hml / JR.L / CALL hml / CR.L (deferred resolution, since the specific type depends on bit 0 of HML)
 		BR_RESTART,		// RST
 	} branch_dest_type;
+	
+	// Offset of the second RM operand
+	uint8_t rm2_offset;
 } inst_decoded_flags;
 
 #endif

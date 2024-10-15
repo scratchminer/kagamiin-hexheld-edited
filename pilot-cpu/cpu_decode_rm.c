@@ -13,7 +13,9 @@ rm_requires_mem_fetch_ (rm_spec rm)
 void
 decode_rm_specifier (pilot_decode_state *state, rm_spec rm, bool is_dest, bool src_is_left, data_size_spec size)
 {
-	execute_control_word *core_op = &state->work_regs.core_op;
+	inst_decoded_flags *work_regs = &state->work_regs;
+	
+	execute_control_word *core_op = &work_regs->core_op;
 	mucode_entry_spec *run_mucode;
 	alu_src_control *src_affected;
 	
@@ -21,17 +23,16 @@ decode_rm_specifier (pilot_decode_state *state, rm_spec rm, bool is_dest, bool s
 	
 	if (state->rm_ops == 2)
 	{
-		state->rm2_offset = state->inst_length;
-		run_mucode->reg_select |= 0x10;
+		work_regs->rm2_offset = state->inst_length;
 	}
 	
 	if (src_is_left)
 	{
-		src_affected = &state->work_regs.core_op.srcs[0];
+		src_affected = &work_regs->core_op.srcs[0];
 	}
 	else if (!is_dest)
 	{
-		src_affected = &state->work_regs.core_op.srcs[1];
+		src_affected = &work_regs->core_op.srcs[1];
 	}
 	else
 	{
@@ -52,7 +53,7 @@ decode_rm_specifier (pilot_decode_state *state, rm_spec rm, bool is_dest, bool s
 		{
 			// left source and destination are the same
 			// fetch and set up writeback
-			run_mucode = &state->work_regs.run_before;
+			run_mucode = &work_regs->run_before;
 			core_op->dest = DATA_LATCH_MEM_DATA;
 			core_op->mem_latch_ctl = MEM_LATCH_HALF2_MAR;
 			core_op->mem_write_ctl = MEM_WRITE_FROM_DEST;
@@ -61,12 +62,12 @@ decode_rm_specifier (pilot_decode_state *state, rm_spec rm, bool is_dest, bool s
 		else if (is_dest)
 		{
 			// destination only, not part of core op; no fetch
-			run_mucode = &state->work_regs.run_after;
+			run_mucode = &work_regs->run_after;
 		}
 		else
 		{
 			// source only, fetch
-			run_mucode = &state->work_regs.run_before;
+			run_mucode = &work_regs->run_before;
 		}
 		
 		run_mucode->is_write = is_dest;
@@ -157,6 +158,11 @@ decode_rm_specifier (pilot_decode_state *state, rm_spec rm, bool is_dest, bool s
 		// Register direct
 		uint8_t reg = (rm >> 2) & 0x7;
 		src_affected->location = (size == SIZE_8_BIT) ? DATA_REG_L0 + reg : DATA_REG_P0 + reg;
+	}
+	
+	if (state->rm_ops == 2)
+	{
+		run_mucode->reg_select |= 0x10;
 	}
 	
 	return;

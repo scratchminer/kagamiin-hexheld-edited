@@ -24,12 +24,7 @@ typedef struct {
 	
 	// Number of RM operands in current instruction
 	uint8_t rm_ops;
-	
-	// Offset of the second RM operand
-	uint8_t rm2_offset;
 } pilot_decode_state;
-
-extern pilot_decode_state *decode_state_;
 
 void decode_unreachable_ ();
 
