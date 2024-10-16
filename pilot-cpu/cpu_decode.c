@@ -117,11 +117,6 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 	if ((opcode & 0xffe0) == 0xfe00)
 	{
 		// REPI
-		if (repeat_op->entry_idx != MU_NONE)
-		{
-			decode_invalid_opcode_(state->sys);
-		}
-		
 		core_op->operation = ALU_OR;
 		core_op->srcs[0].location = DATA_ZERO;
 		core_op->srcs[1].location = DATA_LATCH_IMM_0;
@@ -147,11 +142,6 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 		if ((opcode & 0x00ff) == 0x0000)
 		{
 			// REPR
-			if (repeat_op->entry_idx != MU_NONE)
-			{
-				decode_invalid_opcode_(state->sys);
-			}
-			
 			core_op->operation = ALU_OR;
 			core_op->srcs[0].location = DATA_ZERO;
 			core_op->srcs[1].location = DATA_LATCH_IMM_0;
@@ -559,6 +549,7 @@ decode_inst_arithlogic_ (pilot_decode_state *state, uint16_t opcode)
 			core_op->src2_add_carry = (operation & 1) != 0;
 			core_op->src2_negate = (operation & 2) != 0;
 			core_op->flag_write_mask = F_SIGN | F_ZERO | F_OVERFLOW | F_CARRY | F_EXTEND;
+			core_op->invert_carries = (operation & 2) != 0;
 			break;
 		case 4: case 12:
 			// AND
@@ -597,9 +588,10 @@ decode_inst_arithlogic_ (pilot_decode_state *state, uint16_t opcode)
 				case 0: case 1: case 2: case 3:
 					// ADD / ADX / SUB / SBX
 					core_op->operation = ALU_ADD;
-					core_op->src2_add_carry = operation & 1;
-					core_op->src2_negate = operation & 2;
+					core_op->src2_add_carry = (operation & 1) != 0;
+					core_op->src2_negate = (operation & 2) != 0;
 					core_op->flag_write_mask = F_SIGN | F_ZERO | F_OVERFLOW | F_CARRY | F_EXTEND;
+					core_op->invert_carries = (operation & 2) != 0;
 					break;
 				case 4:
 					// AND
@@ -735,6 +727,8 @@ static inline void
 decode_inst_other_ (pilot_decode_state *state, uint16_t opcode)
 {
 	execute_control_word *core_op = &state->work_regs.core_op;
+	mucode_entry_spec *run_after = &state->work_regs.run_after;
+	
 	data_size_spec size = ((opcode & 0xc000) >> 14);
 	
 	if (opcode == 0x0000)
@@ -936,19 +930,50 @@ decode_inst_other_ (pilot_decode_state *state, uint16_t opcode)
 		decode_rm_specifier(state, rm_rmw, TRUE, TRUE, size);
 		core_op->src2_add_carry = TRUE;
 		core_op->src2_negate = (opcode & 0x0400) != 0;
+		core_op->invert_carries = TRUE;
 		core_op->dest = DATA_ZERO;
 		return;
 	}
 	if ((opcode & 0x3880) == 0x0800)
 	{
 		// MULU / MULS
+		rm_spec rm_src = opcode & 0x3f;
+		core_op->srcs[0].location = DATA_ZERO;
+		core_op->srcs[0].size = size;
+		core_op->operation = ALU_OR;
+		core_op->flag_write_mask = 0;
+		
+		decode_rm_specifier(state, rm_src, FALSE, FALSE, size);
+		core_op->dest = DATA_LATCH_FACTOR;
+		
+		run_after->entry_idx = MU_MUL_CLR_PRODUCT;
+		run_after->size = size;
+		
+		// relevant microcode isn't implemented yet
 		decode_not_implemented_();
+		
 		return;
 	}
 	if ((opcode & 0x38c0) == 0x0880)
 	{
 		// DIVU / DIVS
+		rm_spec rm_src = opcode & 0x3f;
+		core_op->srcs[0].location = DATA_ZERO;
+		core_op->srcs[0].size = size;
+		core_op->operation = ALU_OR;
+		core_op->flag_write_mask = 0;
+		core_op->flag_z_mode = FLAG_Z_SAVE;
+		
+		decode_rm_specifier(state, rm_src, FALSE, FALSE, size);
+		core_op->dest = DATA_LATCH_FACTOR;
+		
+		state->work_regs.branch = TRUE;
+		state->work_regs.branch_cond = COND_DJNZ;
+		state->work_regs.branch_dest_type = BR_DIV_ZERO;
+		
+		// relevant microcode isn't implemented yet
 		decode_not_implemented_();
+		
 		return;
 	}
 	

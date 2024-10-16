@@ -1,16 +1,16 @@
 #include "memory.h"
 #include <stddef.h>
 
-#define WRAM_END         0x007fff
-#define VRAM_END         0x00ffff
-#define CART_CS1_END     0x0fffff
-#define CART_CS2_END     0x1fffff
-#define CART_ROM_END     0xffdfff
-#define TMRAM_END        0xffefff
-#define OAM_END          0xfff27f
-#define HCIO_START       0xfff300
-#define HCIO_END         0xfff3ff
-#define HRAM_END         0xffffff
+#define WRAM_END	0x007fff
+#define VRAM_END	0x00ffff
+#define CART_CS1_END	0x0fffff
+#define CART_CS2_END	0x1fffff
+#define CART_ROM_END	0xffdfff
+#define TMRAM_END	0xffefff
+#define OAM_END		0xfff27f
+#define HCIO_START	0xfff300
+#define HCIO_END	0xfff3ff
+#define HRAM_END	0xffffff
 
 bool
 mem_read (Pilot_system *sys)
@@ -71,7 +71,7 @@ mem_write (Pilot_system *sys)
 	}
 	else if (addr <= CART_ROM_END)
 	{
-		// call cartridge mapper
+		// call cartridge ROM mapper
 	}
 	else if (addr <= TMRAM_END)
 	{

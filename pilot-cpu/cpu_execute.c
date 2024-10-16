@@ -92,6 +92,14 @@ fetch_data_ (pilot_execute_state *state, data_bus_specifier src)
 			return state->sys->core.repi;
 		case DATA_LATCH_REPR:
 			return state->sys->core.repr;
+		case DATA_LATCH_PRODUCT_LO:
+			return state->sys->core.product_low;
+		case DATA_LATCH_PRODUCT_HI:
+			return state->sys->core.product_high;
+		case DATA_LATCH_FACTOR:
+			return state->sys->core.factor;
+		case DATA_REG_R0:
+			return ACCESS_REG_BITS_(state, 0, state->mucode_decoded_buffer.srcs[0].size);
 		case DATA_LATCH_MEM_ADDR:
 			return state->mem_addr;
 		case DATA_LATCH_MEM_DATA:
@@ -271,6 +279,35 @@ write_data_ (pilot_execute_state *state, data_bus_specifier dest, uint32_t *src)
 			state->sys->core.repr = (*src >> 8) & 0x7;
 			state->sys->core.repr |= 0x8;
 			return;
+		case DATA_LATCH_PRODUCT_LO:
+			state->sys->core.product_low = *src & 0xffffff;
+			return;
+		case DATA_LATCH_PRODUCT_HI:
+			state->sys->core.product_high = *src & 0xffffff;
+			return;
+		case DATA_LATCH_FACTOR:
+			state->sys->core.factor = *src & 0xffffff;
+			return;
+		case DATA_REG_R0:
+		{
+			switch (state->mucode_decoded_buffer.srcs[0].size)
+			{
+				case SIZE_8_BIT:
+					state->sys->core.regs[0] &= 0xffff00;
+					state->sys->core.regs[0] |= *src & 0xff;
+					return;
+				case SIZE_16_BIT:
+					state->sys->core.regs[0] &= 0xff0000;
+					state->sys->core.regs[0] |= *src & 0xffff;
+					return;
+				case SIZE_24_BIT:
+					state->sys->core.regs[0] = *src & 0xffffff;
+					return;
+				default:
+					execute_unreachable_();
+					return;
+			}
+		}
 		case DATA_REG_PGC:
 			state->sys->core.pgc = *src & 0xfffffe;
 			return;
@@ -441,7 +478,7 @@ alu_operate_shifter_ (pilot_execute_state *state, uint32_t operand)
 	bool inject_bit;
 	bool msb_bit;
 	bool lsb_bit = operand & 1;
-	bool carry_flag = (fetch_data_(state, DATA_REG_F) & F_CARRY) != 0;
+	bool carry_flag = !(state->control->temp_z_as_extend) ? ((fetch_data_(state, DATA_REG_F) & F_EXTEND) != 0) : state->sys->core.temp_z;
 	
 	if (state->control->srcs[1].size == SIZE_8_BIT)
 	{
@@ -577,15 +614,15 @@ alu_modify_flags_ (pilot_execute_state *state, uint8_t flags, uint32_t operands[
 	{
 		case FLAG_Z_NORMAL:
 			flag_source_word |= (alu_zero) ? F_ZERO : 0;
-			state->sys->core.used_z = alu_zero;
+			state->used_z = alu_zero;
 			break;
 		case FLAG_Z_BIT_TEST:
 			flag_source_word |= ((operands[0] & operands[1]) == 0) ? F_ZERO : 0;
-			state->sys->core.used_z = ((operands[0] & operands[1]) == 0);
+			state->used_z = ((operands[0] & operands[1]) == 0);
 			break;
 		case FLAG_Z_SAVE:
 			state->sys->core.temp_z = alu_zero;
-			state->sys->core.used_z = alu_zero;
+			state->used_z = alu_zero;
 			break;
 		default:
 			execute_unreachable_();
@@ -633,7 +670,8 @@ execute_half2_result_latch_ (pilot_execute_state *state)
 	
 	alu_src_control *src2 = &state->control->srcs[1];
 	uint8_t flags = fetch_data_(state, DATA_REG_F);
-	bool carry_flag_status = (flags & F_CARRY) != 0;
+	bool carry_flag_status = !(state->control->temp_z_as_extend) ? ((flags & F_EXTEND) != 0) : state->sys->core.temp_z;
+	
 	for (i = 0; i < 2; i++)
 	{
 		alu_src_control *src = &state->control->srcs[i];
@@ -879,6 +917,8 @@ execute_sequencer_branch_addr_ (pilot_execute_state *state)
 		}
 		case BR_RESTART:
 			return 0xffd000 | (fetch_data_(state, DATA_LATCH_IMM_0) << 4);
+		case BR_DIV_ZERO:
+			return 0xffcfd0;
 		default:
 			execute_unreachable_();
 			return 0;
@@ -954,6 +994,35 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 		}
 	}
 	
+	if (state->sequencer_phase == EXEC_SEQ_PUSH_WF)
+	{
+		state->mucode_control.entry_idx = MU_PUSH_WF;
+		if (!execute_sequencer_mucode_run_(state))
+		{
+			state->sys->interconnects.execute_branch_addr = execute_sequencer_branch_addr_(state);
+			state->sys->interconnects.execute_branch = TRUE;
+			state->sequencer_phase = EXEC_SEQ_WAIT_NEXT_INS;
+		}
+	}
+	
+	if (state->sequencer_phase == EXEC_SEQ_PUSH_PGC)
+	{
+		state->mucode_control.entry_idx = MU_PUSH_PGC;
+		if (!execute_sequencer_mucode_run_(state))
+		{
+			if (state->decoded_inst.branch_dest_type == BR_DIV_ZERO)
+			{
+				state->sequencer_phase = EXEC_SEQ_PUSH_WF;
+			}
+			else
+			{
+				state->sys->interconnects.execute_branch_addr = execute_sequencer_branch_addr_(state);
+				state->sys->interconnects.execute_branch = TRUE;
+				state->sequencer_phase = EXEC_SEQ_WAIT_NEXT_INS;
+			}
+		}
+	}
+	
 	if (state->sequencer_phase == EXEC_SEQ_WAIT_CACHED_INS)
 	{
 		state->decoded_inst = *state->sys->interconnects.decoded_inst;
@@ -999,7 +1068,7 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 	{
 		if (!execute_sequencer_mucode_run_(state))
 		{
-			if (state->sys->core.used_z)
+			if (state->used_z)
 			{
 				state->repeat_type.entry_idx = MU_NONE;
 				state->sequencer_phase = EXEC_SEQ_FINAL_STEPS;
@@ -1015,7 +1084,7 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 	{
 		if (!execute_sequencer_mucode_run_(state))
 		{
-			if (state->sys->core.used_z)
+			if (state->used_z)
 			{
 				state->repeat_reg_type.entry_idx = MU_NONE;
 				state->sequencer_phase = EXEC_SEQ_FINAL_STEPS;
@@ -1033,8 +1102,16 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 		
 		if (execute_sequencer_branch_test_(state))
 		{
-			state->sys->interconnects.execute_branch_addr = execute_sequencer_branch_addr_(state);
-			state->sys->interconnects.execute_branch = TRUE;
+			if (state->decoded_inst.branch_cond == COND_ALWAYS_CALL || state->decoded_inst.branch_dest_type == BR_DIV_ZERO)
+			{
+				state->sequencer_phase = EXEC_SEQ_PUSH_PGC;
+			}
+			else
+			{
+				state->sys->interconnects.execute_branch_addr = execute_sequencer_branch_addr_(state);
+				state->sys->interconnects.execute_branch = TRUE;
+				state->sequencer_phase = EXEC_SEQ_WAIT_NEXT_INS;
+			}
 		}
 		else
 		{

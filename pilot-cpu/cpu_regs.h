@@ -14,13 +14,17 @@ typedef struct {
 	uint8_t repi;
 	uint8_t repr;
 	
-	// used only for DJNZ / REPI to save the zero flag
+	// two shift registers used for MULS / MULU / DIVS / DIVU to store the product (muliplication) and dividend (division)
+	uint32_t product_low;
+	uint32_t product_high;
+	
+	// used for MULS / MULU / DIVS / DIVU to store the RM operand
+	uint32_t factor;
+	
+	// used for DJNZ / REPI to save the zero flag
 	bool temp_z;
 	
-	// used only for REPI / REPR to tell when to break
-	bool used_z;
-	
-	// used only for HALT to disable the clock until an interrupt or exception
+	// used only for HALT to disable the clock until an interrupt happens
 	bool disable_clk;
 } Pilot_cpu_regs;
 

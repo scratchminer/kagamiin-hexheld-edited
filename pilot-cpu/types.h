@@ -40,13 +40,38 @@ typedef enum
 	
 	// used for 24-bit accesses
 	MU_IND_MAR_AUTO,
+	MU_IND_MAR_POST_AUTO,
 	
 	// post-increment
 	MU_POST_AUTOIDX,
 	
 	// repetition of an implicit instruction
 	MU_REPI,
-	MU_REPR
+	MU_REPR,
+	
+	// MULS / MULU setup steps
+	MU_MUL_CLR_PRODUCT,
+	
+	// MULS / MULU loop steps
+	MU_MUL_SHIFT_PRODUCT_LEFT,
+	MU_MUL_SHIFT_FACTOR_LEFT,
+	MU_MUL_ADD_PRODUCT_LO,
+	MU_MUL_ADD_PRODUCT_HI,
+	MU_ST_PRODUCT_LO,
+	MU_ST_PRODUCT_HI,
+	
+	// DIVS / DIVU setup steps
+	MU_DIV_LD_PRODUCT_LO,
+	MU_DIV_LD_PRODUCT_HI,
+	
+	// DIVS / DIVU loop steps (todo: sign handling?)
+	MU_DIV_SHIFT_PRODUCT_LEFT,
+	MU_DIV_SUB_FACTOR,
+	MU_DIV_ADD_PRODUCT_CARRY,
+	
+	// used for calls and exceptions
+	MU_PUSH_PGC,
+	MU_PUSH_WF
 } mucode_entry_idx;
 
 typedef struct
@@ -105,6 +130,9 @@ typedef enum
 	// Special registers
 	DATA_LATCH_REPI,
 	DATA_LATCH_REPR,
+	DATA_LATCH_PRODUCT_LO,
+	DATA_LATCH_PRODUCT_HI,
+	DATA_LATCH_FACTOR,
 	DATA_LATCH_MEM_ADDR,
 	DATA_LATCH_MEM_DATA,
 	DATA_LATCH_IMM_0,
@@ -137,6 +165,9 @@ typedef enum
 	
 	// outputs from a demultiplexer hooked up to bits 8-10 of the P0 register
 	DATA_DMX_P0_BITS,
+	
+	// L0, W0, or P0, depending on the instruction size
+	DATA_REG_R0,
 } data_bus_specifier;
 
 typedef struct
@@ -182,6 +213,9 @@ typedef struct
 	// Flag control
 	uint8_t flag_write_mask;
 	bool invert_carries;
+	
+	// this uses the temp_z latch instead of the X flag
+	bool temp_z_as_extend;
 	
 	enum
 	{
@@ -289,6 +323,7 @@ typedef struct
 		BR_MAR,			// JR.S / CR.S / JP rm24 / JEA / CALL rm24 / CEA / DJNZ (address is resolved and in MAR)
 		BR_HML,			// JP hml / JR.L / CALL hml / CR.L (deferred resolution, since the specific type depends on bit 0 of HML)
 		BR_RESTART,		// RST
+		BR_DIV_ZERO		// Divide by Zero Exception
 	} branch_dest_type;
 	
 	// Offset of the second RM operand

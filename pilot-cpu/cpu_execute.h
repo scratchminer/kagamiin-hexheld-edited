@@ -18,6 +18,8 @@ typedef struct {
 	uint32_t alu_output_latch;
 	bool alu_shifter_carry_bit;
 	
+	bool used_z;
+	
 	// Memory address and data registers for requesting memory accesses
 	uint32_t mem_addr;
 	uint32_t mem_data;
@@ -57,7 +59,9 @@ typedef struct {
 		EXEC_SEQ_REPEAT_REG_OP,
 		EXEC_SEQ_FINAL_STEPS,
 		EXEC_SEQ_SIGNAL_BRANCH,
-		EXEC_SEQ_BRANCH_OP
+		EXEC_SEQ_BRANCH_OP,
+		EXEC_SEQ_PUSH_PGC,
+		EXEC_SEQ_PUSH_WF
 	} sequencer_phase;
 } pilot_execute_state;
 
