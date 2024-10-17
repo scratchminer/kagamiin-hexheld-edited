@@ -1,6 +1,8 @@
 #include "cpu_fetch.h"
 #include "memory.h"
 
+#include <stdio.h>
+
 void
 pilot_fetch_half1 (pilot_fetch_state *state)
 {
@@ -30,6 +32,7 @@ pilot_fetch_half1 (pilot_fetch_state *state)
 			if (Pilot_mem_data_wait(state->sys))
 			{
 				state->queue_words[0] = Pilot_mem_get_data(state->sys);
+				state->queue_words_full[0] = TRUE;
 			}
 			else
 			{

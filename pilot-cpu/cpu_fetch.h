@@ -16,7 +16,7 @@ typedef struct {
 	
 	enum
 	{
-		FETCH_HALF1_READY,
+		FETCH_HALF1_READY = 0,
 		FETCH_HALF1_MEM_WAIT,
 		FETCH_HALF1_DEQUEUE,
 		

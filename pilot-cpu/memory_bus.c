@@ -1,4 +1,5 @@
 #include "memory.h"
+#include <stdio.h>
 #include <stddef.h>
 
 #define WRAM_END	0x007fff
@@ -10,11 +11,15 @@
 #define OAM_END		0xfff27f
 #define HCIO_START	0xfff300
 #define HCIO_END	0xfff3ff
+#define HRAM_START	0xfff400
 #define HRAM_END	0xffffff
 
 bool
 mem_read (Pilot_system *sys)
 {
+	if (sys->memctl.is_16bit) printf("RD16 %06x\n", sys->memctl.addr_reg);
+	else printf("RD08 %06x\n", sys->memctl.addr_reg);
+	
 	uint32_t addr = sys->memctl.addr_reg;
 	if (addr <= WRAM_END)
 	{
@@ -46,7 +51,7 @@ mem_read (Pilot_system *sys)
 	}
 	else if (addr <= HRAM_END)
 	{
-		sys->memctl.data_reg_in = sys->hram[addr] | (sys->memctl.is_16bit ? (sys->hram[addr + 1] << 8) : 0);
+		sys->memctl.data_reg_in = sys->hram[addr - HRAM_START] | (sys->memctl.is_16bit ? (sys->hram[addr - HRAM_START + 1] << 8) : 0);
 		return TRUE;
 	}
 	
@@ -57,6 +62,10 @@ bool
 mem_write (Pilot_system *sys)
 {
 	uint32_t addr = sys->memctl.addr_reg;
+	
+	if (sys->memctl.is_16bit) printf("WR16 %04x -> %06x\n", sys->memctl.data_reg_out, sys->memctl.addr_reg);
+	else printf("WR08 %02x -> %06x\n", sys->memctl.data_reg_out & 0xff, sys->memctl.addr_reg);
+	
 	if (addr <= WRAM_END)
 	{
 		// try to read WRAM

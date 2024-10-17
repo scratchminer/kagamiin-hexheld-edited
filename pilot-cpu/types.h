@@ -50,7 +50,8 @@ typedef enum
 	MU_REPR,
 	
 	// MULS / MULU setup steps
-	MU_MUL_CLR_PRODUCT,
+	MU_MUL_LD_PRODUCT_LO,
+	MU_MUL_LD_PRODUCT_HI,
 	
 	// MULS / MULU loop steps
 	MU_MUL_SHIFT_PRODUCT_LEFT,
@@ -69,9 +70,13 @@ typedef enum
 	MU_DIV_SUB_FACTOR,
 	MU_DIV_ADD_PRODUCT_CARRY,
 	
-	// used for calls and exceptions
-	MU_PUSH_PGC,
-	MU_PUSH_WF
+	// used for calls and exceptions/interrupts
+	MU_PUSH_PGC_IND_SP_AUTO,
+	MU_PUSH_PGC_WR_PGC,
+	
+	// used for exceptions/interrupts
+	MU_PUSH_WF_IND_SP_AUTO,
+	MU_PUSH_WF_WR_WF
 } mucode_entry_idx;
 
 typedef struct
@@ -243,7 +248,7 @@ typedef struct
 	{
 		// Don't latch address
 		MEM_NO_LATCH = 0,
-		// Latches at first half of cycle, address from ALU src0
+		// Latches at first half of cycle, address from ALU src1
 		MEM_LATCH_HALF1,
 		// Latches at second half of cycle, address from ALU dest
 		MEM_LATCH_HALF2,
@@ -256,8 +261,8 @@ typedef struct
 	enum
 	{
 		MEM_READ = 0,
-		// Data is latched from ALU src1
-		MEM_WRITE_FROM_SRC1,
+		// Data is latched from ALU src2
+		MEM_WRITE_FROM_SRC2,
 		// Data is latched from ALU dest
 		MEM_WRITE_FROM_DEST,
 		// Data is not latched; whatever was left in the lower 16 bits of MDR is what's written back
@@ -323,7 +328,8 @@ typedef struct
 		BR_MAR,			// JR.S / CR.S / JP rm24 / JEA / CALL rm24 / CEA / DJNZ (address is resolved and in MAR)
 		BR_HML,			// JP hml / JR.L / CALL hml / CR.L (deferred resolution, since the specific type depends on bit 0 of HML)
 		BR_RESTART,		// RST
-		BR_DIV_ZERO		// Divide by Zero Exception
+		BR_DIV_ZERO,		// Divide by Zero Exception
+		BR_ILLEGAL,		// Illegal Instruction Exception
 	} branch_dest_type;
 	
 	// Offset of the second RM operand

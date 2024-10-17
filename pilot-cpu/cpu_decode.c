@@ -82,8 +82,18 @@
  * 
  */
 
-// Placeholder
+// Placeholders
 void decode_not_implemented_ ();
+
+static void
+decode_invalid_opcode_ (pilot_decode_state *state)
+{
+	inst_decoded_flags *work_regs = &state->work_regs;
+	
+	work_regs->branch = TRUE;
+	work_regs->branch_cond = COND_ALWAYS;
+	work_regs->branch_dest_type = BR_ILLEGAL;
+}
 
 static inline void
 decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
@@ -95,7 +105,8 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 	
 	if (repeat_op->entry_idx != MU_NONE && repeat_op->entry_idx != MU_REPR)
 	{
-		decode_invalid_opcode_(state->sys);
+		decode_invalid_opcode_(state);
+		return;
 	}
 	
 	if ((opcode & 0xff00) == 0xff00)
@@ -103,7 +114,8 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 		// RST
 		if (repeat_op->entry_idx != MU_NONE)
 		{
-			decode_invalid_opcode_(state->sys);
+			decode_invalid_opcode_(state);
+			return;
 		}
 		
 		core_op->operation = ALU_OFF;
@@ -166,7 +178,8 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 			// DJNZ
 			if (repeat_op->entry_idx != MU_NONE)
 			{
-				decode_invalid_opcode_(state->sys);
+				decode_invalid_opcode_(state);
+				return;
 			}
 			
 			core_op->operation = ALU_ADD;
@@ -193,7 +206,7 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 		}
 		else
 		{
-			decode_invalid_opcode_(state->sys);
+			decode_invalid_opcode_(state);
 			return;
 		}
 	}
@@ -203,7 +216,8 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 		// JR cond / JR.S / CR.S
 		if (repeat_op->entry_idx != MU_NONE)
 		{
-			decode_invalid_opcode_(state->sys);
+			decode_invalid_opcode_(state);
+			return;
 		}
 		
 		core_op->operation = ALU_ADD;
@@ -233,7 +247,8 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 			// JP / JR.L
 			if (repeat_op->entry_idx != MU_NONE)
 			{
-				decode_invalid_opcode_(state->sys);
+				decode_invalid_opcode_(state);
+				return;
 			}
 			
 			decode_queue_read_word(state);
@@ -256,7 +271,8 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 			// CALL / CR.L
 			if (repeat_op->entry_idx != MU_NONE)
 			{
-				decode_invalid_opcode_(state->sys);
+				decode_invalid_opcode_(state);
+				return;
 			}
 			
 			decode_queue_read_word(state);
@@ -279,7 +295,8 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 			
 			if (repeat_op->entry_idx != MU_NONE)
 			{
-				decode_invalid_opcode_(state->sys);
+				decode_invalid_opcode_(state);
+				return;
 			}
 			
 			switch (opcode & 0x01c0)
@@ -344,7 +361,7 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 		}
 	}
 	
-	decode_invalid_opcode_(state->sys);
+	decode_invalid_opcode_(state);
 	return;
 }
 
@@ -482,7 +499,7 @@ decode_inst_bit_ (pilot_decode_state *state, uint16_t opcode)
 		return;
 	}
 	
-	decode_invalid_opcode_(state->sys);
+	decode_invalid_opcode_(state);
 	return;
 }
 
@@ -946,7 +963,7 @@ decode_inst_other_ (pilot_decode_state *state, uint16_t opcode)
 		decode_rm_specifier(state, rm_src, FALSE, FALSE, size);
 		core_op->dest = DATA_LATCH_FACTOR;
 		
-		run_after->entry_idx = MU_MUL_CLR_PRODUCT;
+		run_after->entry_idx = MU_MUL_LD_PRODUCT_LO;
 		run_after->size = size;
 		
 		// relevant microcode isn't implemented yet
@@ -977,7 +994,7 @@ decode_inst_other_ (pilot_decode_state *state, uint16_t opcode)
 		return;
 	}
 	
-	decode_invalid_opcode_(state->sys);
+	decode_invalid_opcode_(state);
 	return;
 }
 
@@ -1053,8 +1070,7 @@ pilot_decode_half1 (pilot_decode_state *state)
 	
 	if (state->decoding_phase == DECODER_HALF1_DISPATCH_WAIT)
 	{
-		bool *decoded_inst_semaph = &state->sys->interconnects.decoded_inst_semaph;
-		if (!(*decoded_inst_semaph))
+		if (!state->sys->interconnects.decoded_inst_semaph)
 		{
 			state->decoding_phase = DECODER_HALF1_READY;
 		}
@@ -1063,6 +1079,7 @@ pilot_decode_half1 (pilot_decode_state *state)
 	if (state->decoding_phase == DECODER_HALF1_READY)
 	{
 		state->inst_length = 0;
+		state->words_to_read = 0;
 		state->decoding_phase = DECODER_HALF1_READ_INST_WORD;
 	}
 	
@@ -1108,11 +1125,13 @@ pilot_decode_half2 (pilot_decode_state *state)
 	
 	if (state->decoding_phase == DECODER_HALF2_DISPATCH)
 	{
-		state->work_regs.inst_pgc = state->sys->interconnects.fetch_addr;
+		if (state->work_regs.branch_dest_type != BR_ILLEGAL)
+		{
+			state->work_regs.inst_pgc = state->sys->interconnects.fetch_addr;
+		}
 		
-		inst_decoded_flags *decoded_inst = state->sys->interconnects.decoded_inst;
-		*decoded_inst = state->work_regs;
-		
+		state->decoded_inst = state->work_regs;
+		state->sys->interconnects.decoded_inst = &state->decoded_inst;
 		state->sys->interconnects.decoded_inst_semaph = TRUE;
 		
 		state->decoding_phase = DECODER_HALF1_DISPATCH_WAIT;

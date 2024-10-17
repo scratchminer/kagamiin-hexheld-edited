@@ -31,6 +31,8 @@ typedef struct {
 	
 	enum
 	{
+		EXEC_START = 0,
+		
 		EXEC_HALF1_READY,
 		EXEC_HALF1_MEM_WAIT,
 		EXEC_HALF1_OPERAND_LATCH,
@@ -48,7 +50,7 @@ typedef struct {
 	
 	enum
 	{
-		EXEC_SEQ_WAIT_NEXT_INS,
+		EXEC_SEQ_WAIT_NEXT_INS = 0,
 		EXEC_SEQ_WAIT_CACHED_INS,
 		EXEC_SEQ_EVAL_CONTROL,
 		EXEC_SEQ_RUN_BEFORE,

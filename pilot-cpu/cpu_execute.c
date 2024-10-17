@@ -1,14 +1,22 @@
 #include "cpu_regs.h"
-#include "cpu_decode.h"
 #include "cpu_execute.h"
 #include "cpu_mucode.h"
 #include "memory.h"
 #include "types.h"
 
-void execute_unreachable_ ();
-
 #define ACCESS_REG_BITS_(state, r, size) fetch_data_(state, (size == SIZE_8_BIT ? DATA_REG_L0 : DATA_REG_P0) + r)
 #define READ_IMM_LATCH_(state, imm, size) (size == SIZE_24_BIT ? (((state->decoded_inst.imm_words[imm] & 0xff) << 16) | state->decoded_inst.imm_words[imm + 1]) : state->decoded_inst.imm_words[imm])
+
+// Placeholder
+void execute_unreachable_ ();
+
+static void
+execute_invalid_opcode_ (pilot_execute_state *state)
+{
+	state->sequencer_phase = EXEC_SEQ_SIGNAL_BRANCH;
+	state->decoded_inst.branch_cond = COND_ALWAYS;
+	state->decoded_inst.branch_dest_type = BR_ILLEGAL;
+}
 
 static uint32_t
 fetch_data_ (pilot_execute_state *state, data_bus_specifier src)
@@ -30,7 +38,12 @@ fetch_data_ (pilot_execute_state *state, data_bus_specifier src)
 			else if (size == SIZE_16_BIT)
 				return 2;
 			else
-				return 4;
+			{
+				if (state->mucode_decoded_buffer.srcs[0].location == DATA_REG_SP)
+					return 2;
+				else
+					return 4;
+			}
 		}
 		case DATA_REG_L0:
 			return state->sys->core.regs[0] & 0xff;
@@ -134,7 +147,7 @@ fetch_data_ (pilot_execute_state *state, data_bus_specifier src)
 		{
 			if (state->decoded_inst.imm_words[2] >= 0xc000) 
 			{
-				decode_invalid_opcode_(state->sys);
+				execute_invalid_opcode_(state);
 				return 0;
 			}
 			state->mucode_decoded_buffer.srcs[1].sign_extend = ((state->decoded_inst.imm_words[2] & 0x0800) != 0);
@@ -148,7 +161,7 @@ fetch_data_ (pilot_execute_state *state, data_bus_specifier src)
 		{
 			if (state->decoded_inst.imm_words[state->decoded_inst.rm2_offset + 1] >= 0xc000) 
 			{
-				decode_invalid_opcode_(state->sys);
+				execute_invalid_opcode_(state);
 				return 0;
 			}
 			state->mucode_decoded_buffer.srcs[1].sign_extend = ((state->decoded_inst.imm_words[state->decoded_inst.rm2_offset + 1] & 0x0800) != 0);
@@ -388,7 +401,7 @@ execute_half1_mem_prepare_ (pilot_execute_state *state)
 		{
 			switch (state->control->mem_write_ctl)
 			{
-				case MEM_WRITE_FROM_SRC1:
+				case MEM_WRITE_FROM_SRC2:
 					state->mem_data = state->alu_input_latches[1];
 					break;
 				case MEM_WRITE_FROM_DEST:
@@ -779,8 +792,8 @@ execute_half2_mem_prepare_ (pilot_execute_state *state)
 		{
 			switch (state->control->mem_write_ctl)
 			{
-				case MEM_WRITE_FROM_SRC1:
-					// MEM_WRITE_FROM_SRC1 should only be used in cycle 1!
+				case MEM_WRITE_FROM_SRC2:
+					// MEM_WRITE_FROM_SRC2 should only be used in cycle 1!
 					execute_unreachable_();
 					state->mem_data = state->alu_input_latches[1];
 					break;
@@ -919,6 +932,8 @@ execute_sequencer_branch_addr_ (pilot_execute_state *state)
 			return 0xffd000 | (fetch_data_(state, DATA_LATCH_IMM_0) << 4);
 		case BR_DIV_ZERO:
 			return 0xffcfd0;
+		case BR_ILLEGAL:
+			return 0xffcfe0;
 		default:
 			execute_unreachable_();
 			return 0;
@@ -996,7 +1011,7 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 	
 	if (state->sequencer_phase == EXEC_SEQ_PUSH_WF)
 	{
-		state->mucode_control.entry_idx = MU_PUSH_WF;
+		state->mucode_control.entry_idx = MU_PUSH_WF_IND_SP_AUTO;
 		if (!execute_sequencer_mucode_run_(state))
 		{
 			state->sys->interconnects.execute_branch_addr = execute_sequencer_branch_addr_(state);
@@ -1007,10 +1022,10 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 	
 	if (state->sequencer_phase == EXEC_SEQ_PUSH_PGC)
 	{
-		state->mucode_control.entry_idx = MU_PUSH_PGC;
+		state->mucode_control.entry_idx = MU_PUSH_PGC_IND_SP_AUTO;
 		if (!execute_sequencer_mucode_run_(state))
 		{
-			if (state->decoded_inst.branch_dest_type == BR_DIV_ZERO)
+			if (state->decoded_inst.branch_dest_type == BR_DIV_ZERO || state->decoded_inst.branch_dest_type == BR_ILLEGAL)
 			{
 				state->sequencer_phase = EXEC_SEQ_PUSH_WF;
 			}
@@ -1126,6 +1141,14 @@ pilot_execute_half2 (pilot_execute_state *state)
 	if (state->sys->core.disable_clk)
 	{
 		return;
+	}
+	
+	if (state->execution_phase == EXEC_START)
+	{
+		if (state->sys->interconnects.decoded_inst_semaph)
+		{
+			state->execution_phase = EXEC_HALF2_ADVANCE_SEQUENCER;
+		}
 	}
 	
 	if (state->execution_phase == EXEC_HALF2_READY)

@@ -8,13 +8,14 @@ typedef struct {
 	Pilot_system *sys;
 	
 	inst_decoded_flags work_regs;
+	inst_decoded_flags decoded_inst;
 	uint32_t pgc;
 	
 	uint8_t inst_length;
 	uint8_t words_to_read;
 	enum
 	{
-		DECODER_HALF1_DISPATCH_WAIT,
+		DECODER_HALF1_DISPATCH_WAIT = 0,
 		DECODER_HALF1_READY,
 		DECODER_HALF1_READ_INST_WORD,
 		
@@ -27,9 +28,6 @@ typedef struct {
 } pilot_decode_state;
 
 void decode_unreachable_ ();
-
-// Runs the invalid opcode exception reporting
-void decode_invalid_opcode_ (Pilot_system *sys);
 
 // Queues in a word read from the fetch unit
 void decode_queue_read_word (pilot_decode_state *state);
