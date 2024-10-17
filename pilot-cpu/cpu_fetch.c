@@ -1,8 +1,6 @@
 #include "cpu_fetch.h"
 #include "memory.h"
 
-#include <stdio.h>
-
 void
 pilot_fetch_half1 (pilot_fetch_state *state)
 {
@@ -91,7 +89,7 @@ pilot_fetch_half2 (pilot_fetch_state *state)
 				state->queue_words_full[i] = FALSE;
 			}
 			
-			state->mem_addr = state->sys->interconnects.execute_branch_addr >> 1;
+			state->mem_addr = state->sys->interconnects.execute_branch_addr;
 			*execute_branch = FALSE;
 		}
 		
@@ -100,15 +98,15 @@ pilot_fetch_half2 (pilot_fetch_state *state)
 	
 	if (state->fetch_phase == FETCH_HALF2_MEM_ASSERT)
 	{
-		if (!Pilot_mem_addr_read_assert(state->sys, TRUE, state->mem_addr << 1))
+		if (!Pilot_mem_addr_read_assert(state->sys, TRUE, state->mem_addr))
 		{
 			return;
 		}
 		
 		state->mem_access_waiting = TRUE;
 		
-		state->mem_addr++;
-		state->sys->interconnects.fetch_addr = state->mem_addr << 1;
+		state->mem_addr = (state->mem_addr + 2) & 0xfffffe;
+		state->sys->interconnects.fetch_addr = state->mem_addr;
 		
 		state->fetch_phase = FETCH_HALF1_READY;
 	}
