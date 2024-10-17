@@ -302,6 +302,8 @@ typedef struct
 	
 	// Branch flags
 	bool branch;
+	bool interrupt;
+	
 	enum
 	{
 		COND_LE = 0,		// less than or equal
@@ -321,6 +323,14 @@ typedef struct
 		COND_ALWAYS,		// always
 		COND_ALWAYS_CALL,	// always, but used for calls
 		COND_DJNZ,		// nonzero, but uses the temp_z latch
+		COND_NMI,		// always, but used for NMI
+		COND_IRQ1,		// interrupt request level is greater than or equal
+		COND_IRQ2,
+		COND_IRQ3,
+		COND_IRQ4,
+		COND_IRQ5,
+		COND_IRQ6,
+		COND_IRQ7
 	} branch_cond;
 	
 	enum
@@ -330,6 +340,7 @@ typedef struct
 		BR_RESTART,		// RST
 		BR_DIV_ZERO,		// Divide by Zero Exception
 		BR_ILLEGAL,		// Illegal Instruction Exception
+		BR_IRQ,			// NMI and the seven IRQs
 	} branch_dest_type;
 	
 	// Offset of the second RM operand

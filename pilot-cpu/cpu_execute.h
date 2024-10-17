@@ -60,12 +60,15 @@ typedef struct {
 		EXEC_SEQ_REPEAT_OP,
 		EXEC_SEQ_REPEAT_REG_OP,
 		EXEC_SEQ_FINAL_STEPS,
+		EXEC_SEQ_SIGNAL_INTERRUPT,
 		EXEC_SEQ_SIGNAL_BRANCH,
 		EXEC_SEQ_BRANCH_OP,
 		EXEC_SEQ_PUSH_PGC,
 		EXEC_SEQ_PUSH_WF
 	} sequencer_phase;
 } pilot_execute_state;
+
+void execute_unreachable_ ();
 
 void pilot_execute_half1 (pilot_execute_state *state);
 void pilot_execute_half2 (pilot_execute_state *state);

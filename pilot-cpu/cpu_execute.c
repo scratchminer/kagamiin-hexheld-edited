@@ -867,6 +867,11 @@ execute_sequencer_branch_test_ (pilot_execute_state *state)
 	bool zero = (flags & F_ZERO) != 0;
 	bool sign = (flags & F_SIGN) != 0;
 	
+	if (state->decoded_inst.branch_cond >= COND_IRQ1 && state->decoded_inst.branch_cond <= COND_IRQ7)
+	{
+		return fetch_data_(state, DATA_REG_IRL) > (state->decoded_inst.branch_cond - COND_IRQ1);
+	}
+	
 	switch (state->decoded_inst.branch_cond)
 	{
 		case COND_LE:
@@ -902,6 +907,8 @@ execute_sequencer_branch_test_ (pilot_execute_state *state)
 			return TRUE;
 		case COND_DJNZ:
 			return !state->sys->core.temp_z;
+		case COND_NMI:
+			return TRUE;
 		default:
 			execute_unreachable_();
 			return FALSE;
@@ -934,6 +941,8 @@ execute_sequencer_branch_addr_ (pilot_execute_state *state)
 			return 0xffcfd0;
 		case BR_ILLEGAL:
 			return 0xffcfe0;
+		case BR_IRQ:
+			return 0xffcf00 | ((state->decoded_inst.branch_cond - COND_NMI) << 4);
 		default:
 			execute_unreachable_();
 			return 0;
@@ -958,6 +967,10 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 	
 	if (state->sequencer_phase == EXEC_SEQ_FINAL_STEPS)
 	{
+		if (state->decoded_inst.interrupt)
+		{
+			state->sequencer_phase = EXEC_SEQ_SIGNAL_INTERRUPT;
+		}
 		if (state->decoded_inst.branch)
 		{
 			state->sequencer_phase = EXEC_SEQ_SIGNAL_BRANCH;
@@ -1025,7 +1038,7 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 		state->mucode_control.entry_idx = MU_PUSH_PGC_IND_SP_AUTO;
 		if (!execute_sequencer_mucode_run_(state))
 		{
-			if (state->decoded_inst.branch_dest_type == BR_DIV_ZERO || state->decoded_inst.branch_dest_type == BR_ILLEGAL)
+			if (state->decoded_inst.interrupt)
 			{
 				state->sequencer_phase = EXEC_SEQ_PUSH_WF;
 			}
@@ -1111,13 +1124,23 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 		}
 	}
 	
-	if (state->sequencer_phase == EXEC_SEQ_SIGNAL_BRANCH)
+	if (state->sequencer_phase == EXEC_SEQ_SIGNAL_INTERRUPT)
 	{
-		state->sys->interconnects.execute_branch = TRUE;
-		
 		if (execute_sequencer_branch_test_(state))
 		{
-			if (state->decoded_inst.branch_cond == COND_ALWAYS_CALL || state->decoded_inst.branch_dest_type == BR_DIV_ZERO)
+			state->sequencer_phase = EXEC_SEQ_PUSH_PGC;
+		}
+		else
+		{
+			state->sequencer_phase = EXEC_SEQ_WAIT_NEXT_INS;
+		}
+	}
+	
+	if (state->sequencer_phase == EXEC_SEQ_SIGNAL_BRANCH)
+	{
+		if (execute_sequencer_branch_test_(state))
+		{
+			if (state->decoded_inst.branch_cond == COND_ALWAYS_CALL)
 			{
 				state->sequencer_phase = EXEC_SEQ_PUSH_PGC;
 			}

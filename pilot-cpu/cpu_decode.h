@@ -27,7 +27,7 @@ typedef struct {
 	uint8_t rm_ops;
 } pilot_decode_state;
 
-void decode_unreachable_ ();
+void decode_unreachable_ (void);
 
 // Queues in a word read from the fetch unit
 void decode_queue_read_word (pilot_decode_state *state);

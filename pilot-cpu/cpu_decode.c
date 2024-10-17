@@ -82,8 +82,13 @@
  * 
  */
 
-// Placeholders
-void decode_not_implemented_ ();
+// Placeholder
+void execute_unreachable_ ();
+
+void decode_not_implemented_ (void)
+{
+	execute_unreachable_();
+}
 
 static void
 decode_invalid_opcode_ (pilot_decode_state *state)
@@ -539,7 +544,6 @@ decode_inst_ld_other_ (pilot_decode_state *state, uint16_t opcode)
 		return;
 	}
 	
-	decode_unreachable_();
 	return;
 }
 
@@ -638,12 +642,8 @@ decode_inst_arithlogic_ (pilot_decode_state *state, uint16_t opcode)
 					core_op->src2_negate = TRUE;
 					core_op->flag_write_mask = F_SIGN | F_ZERO | F_OVERFLOW | F_CARRY;
 					break;
-			default:
-				decode_unreachable_();
 			}
 		}
-		default:
-			decode_unreachable_();
 	}
 	
 	// Decode operands
@@ -689,7 +689,7 @@ decode_inst_ld_group_ (pilot_decode_state *state, uint16_t opcode)
 	core_op->flag_write_mask = 0;
 	core_op->flag_v_mode = FLAG_V_NORMAL;
 	core_op->flag_z_mode = FLAG_Z_NORMAL;
-
+	
 	// left operand is never fetched and is always zero
 	core_op->srcs[0].location = DATA_ZERO;
 	core_op->srcs[0].size = size;
@@ -701,19 +701,21 @@ decode_inst_ld_group_ (pilot_decode_state *state, uint16_t opcode)
 	{
 		// one RM specifier
 		rm_spec rm_src = opcode & 0x3f;
-
+		
 		core_op->srcs[0].size = SIZE_24_BIT;
-		core_op->dest = DATA_REG_IMM_0_8;
-
+		
 		if ((opcode & 0x8800) == 0x0800)
 		{
 			// LDSX
+			core_op->dest = DATA_REG_IMM_0_8;
 			core_op->srcs[1].sign_extend = TRUE;
 		}
 		if ((opcode & 0xf000) == 0x9000)
 		{
 			// LEA (uses the RM decoder to handle the auto-index)
 			rm_spec dummy_rm = (opcode & 0x0f80) >> 7;
+			if ((opcode & 0x0080) == 0x0000) dummy_rm &= 0x36;
+			
 			decode_rm_specifier(state, dummy_rm, TRUE, FALSE, size);
 			core_op->mem_access_suppress = TRUE;
 		}
@@ -735,8 +737,6 @@ decode_inst_ld_group_ (pilot_decode_state *state, uint16_t opcode)
 		decode_rm_specifier(state, rm_dest, TRUE, FALSE, size);
 		return;
 	}
-	
-	decode_unreachable_();
 	return;
 }
 
@@ -1004,10 +1004,32 @@ decode_inst_ (pilot_decode_state *state)
 	state->rm_ops = 0;
 	
 	inst_decoded_flags *work_regs = &state->work_regs;
+	
+	work_regs->run_before.entry_idx = MU_NONE;
+	work_regs->run_before.reg_select = 0;
+	work_regs->run_before.size = SIZE_24_BIT;
+	work_regs->run_before.is_write = FALSE;
+	work_regs->run_before.mem_access_suppress = FALSE;
+	
+	work_regs->run_after.entry_idx = MU_NONE;
+	work_regs->run_after.reg_select = 0;
+	work_regs->run_after.size = SIZE_24_BIT;
+	work_regs->run_after.is_write = FALSE;
+	work_regs->run_after.mem_access_suppress = FALSE;
+	
+	work_regs->repeat_op.entry_idx = MU_NONE;
+	work_regs->repeat_op.reg_select = 0;
+	work_regs->repeat_op.size = SIZE_24_BIT;
+	work_regs->repeat_op.is_write = FALSE;
+	work_regs->repeat_op.mem_access_suppress = FALSE;
+	
+	work_regs->branch = FALSE;
+	work_regs->interrupt = FALSE;
+	
 	work_regs->rm2_offset = 0;
 	work_regs->disable_clk = FALSE;
 	
-	uint16_t opcode = state->work_regs.imm_words[0];
+	uint16_t opcode = work_regs->imm_words[0];
 	
 	if ((opcode & 0xf000) >= 0xe000)
 	{
