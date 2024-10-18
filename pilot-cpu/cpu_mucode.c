@@ -294,7 +294,7 @@ ind_2cyc_mar_auto_ (mucode_entry_spec spec)
 	prg.operation.srcs[0].location = DATA_LATCH_MEM_ADDR;
 	
 	prg.operation.srcs[1].location = DATA_SIZE;
-	prg.operation.srcs[1].size = SIZE_24_BIT;
+	prg.operation.srcs[1].size = SIZE_16_BIT;
 	prg.operation.srcs[1].sign_extend = FALSE;
 	
 	prg.operation.operation = ALU_ADD;

@@ -27,7 +27,7 @@ fetch_data_ (pilot_execute_state *state, data_bus_specifier src)
 			return 0;
 		case DATA_SIZE:
 		{
-			data_size_spec size = state->mucode_decoded_buffer.srcs[0].size;
+			data_size_spec size = state->mucode_decoded_buffer.srcs[1].size;
 			if (size == SIZE_8_BIT)
 			{
 				if (state->mucode_decoded_buffer.srcs[0].location == DATA_REG_SP || state->mucode_decoded_buffer.srcs[1].location == DATA_REG_SP)
