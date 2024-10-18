@@ -17,6 +17,7 @@ pilot_fetch_half1 (pilot_fetch_state *state)
 			{
 				state->queue_words[i] = state->queue_words[i - 1];
 				state->queue_words_full[i] = state->queue_words_full[i - 1];
+				state->queue_words_full[i - 1] = FALSE;
 			}
 		}
 		
@@ -98,6 +99,25 @@ pilot_fetch_half2 (pilot_fetch_state *state)
 	
 	if (state->fetch_phase == FETCH_HALF2_MEM_ASSERT)
 	{
+		bool all_full = TRUE;
+		
+		for (int i = 0; i < 5; i++) {
+			if (!state->queue_words_full[i])
+			{
+				all_full = FALSE;
+			}
+		}
+		if (all_full)
+		{
+			state->fetch_phase = FETCH_HALF1_READY;
+			return;
+		}
+		
+		if (state->sys->interconnects.execute_memory_backoff)
+		{
+			return;
+		}
+		
 		if (!Pilot_mem_addr_read_assert(state->sys, TRUE, state->mem_addr))
 		{
 			return;

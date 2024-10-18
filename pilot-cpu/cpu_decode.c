@@ -243,6 +243,8 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 		work_regs->branch = TRUE;
 		work_regs->branch_cond = (opcode >> 8) & 0xf;
 		work_regs->branch_dest_type = BR_MAR;
+		
+		return;
 	}
 	
 	switch (opcode & 0x0700)
@@ -471,11 +473,11 @@ decode_inst_bit_ (pilot_decode_state *state, uint16_t opcode)
 	}
 	if ((opcode & 0x0c00) == 0x0c00)
 	{
-		core_op->srcs[0].location = DATA_LATCH_IMM_0;
+		core_op->srcs[0].location = DATA_REG_F;
 		core_op->srcs[0].size = SIZE_8_BIT;
 		core_op->srcs[0].sign_extend = FALSE;
 		
-		core_op->srcs[1].location = DATA_REG_F;
+		core_op->srcs[1].location = DATA_LATCH_IMM_0;
 		core_op->srcs[1].size = SIZE_8_BIT;
 		core_op->srcs[1].sign_extend = FALSE;
 		
@@ -497,7 +499,8 @@ decode_inst_bit_ (pilot_decode_state *state, uint16_t opcode)
 				break;
 			case 0x0300:
 				// LD.B F, imm
-				core_op->operation = ALU_OFF;
+				core_op->srcs[1].location = DATA_ZERO;
+				core_op->operation = ALU_OR;
 				break;
 		}
 		
@@ -1011,6 +1014,26 @@ decode_inst_ (pilot_decode_state *state)
 	work_regs->run_before.is_write = FALSE;
 	work_regs->run_before.mem_access_suppress = FALSE;
 	
+	work_regs->core_op.srcs[0].location = DATA_ZERO;
+	work_regs->core_op.srcs[0].size = SIZE_24_BIT;
+	work_regs->core_op.srcs[0].sign_extend = FALSE;
+	work_regs->core_op.srcs[1].location = DATA_ZERO;
+	work_regs->core_op.srcs[1].size = SIZE_24_BIT;
+	work_regs->core_op.srcs[1].sign_extend = FALSE;
+	work_regs->core_op.dest = DATA_ZERO;
+	work_regs->core_op.operation = ALU_OFF;
+	work_regs->core_op.src2_add1 = FALSE;
+	work_regs->core_op.src2_add_carry = FALSE;
+	work_regs->core_op.src2_negate = FALSE;
+	work_regs->core_op.shifter_mode = SHIFTER_NONE;
+	work_regs->core_op.flag_write_mask = 0;
+	work_regs->core_op.invert_carries = FALSE;
+	work_regs->core_op.temp_z_as_extend = FALSE;
+	work_regs->core_op.flag_z_mode = FLAG_Z_NORMAL;
+	work_regs->core_op.flag_v_mode = FLAG_V_NORMAL;
+	work_regs->core_op.mem_latch_ctl = MEM_NO_LATCH;
+	work_regs->core_op.mem_access_suppress = FALSE;
+	
 	work_regs->run_after.entry_idx = MU_NONE;
 	work_regs->run_after.reg_select = 0;
 	work_regs->run_after.size = SIZE_24_BIT;
@@ -1030,6 +1053,8 @@ decode_inst_ (pilot_decode_state *state)
 	work_regs->disable_clk = FALSE;
 	
 	uint16_t opcode = work_regs->imm_words[0];
+	
+	//printf("%04x\n", opcode);
 	
 	if ((opcode & 0xf000) >= 0xe000)
 	{
@@ -1066,7 +1091,6 @@ decode_inst_ (pilot_decode_state *state)
 void
 decode_queue_read_word (pilot_decode_state *state)
 {
-	state->inst_length++;
 	state->words_to_read++;
 }
 
@@ -1075,7 +1099,8 @@ decode_try_read_word_ (pilot_decode_state *state)
 {
 	bool *fetch_word_semaph = &state->sys->interconnects.fetch_word_semaph;
 	if (*fetch_word_semaph) {
-		state->work_regs.imm_words[state->inst_length] = state->sys->interconnects.fetch_word;
+		*fetch_word_semaph = FALSE;
+		state->work_regs.imm_words[state->inst_length++] = state->sys->interconnects.fetch_word;
 		return TRUE;
 	}
 	
@@ -1112,7 +1137,6 @@ pilot_decode_half1 (pilot_decode_state *state)
 		bool read_ok = decode_try_read_word_(state);
 		if (read_ok)
 		{
-			state->inst_length++;
 			decode_inst_(state);
 			state->decoding_phase = DECODER_HALF2_READ_OPERANDS;
 		}

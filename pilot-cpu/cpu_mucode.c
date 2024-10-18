@@ -63,7 +63,9 @@ ind_1cyc_imm_ (mucode_entry_spec spec)
 {
 	mucode_entry prg = base_entry_(spec);
 	prg.operation.srcs[0].location = DATA_LATCH_IMM_1;
+	prg.operation.srcs[0].sign_extend = spec.reg_select & 0x8;
 	prg.operation.srcs[0].size = spec.size;
+	prg.operation.srcs[1].size = !(spec.reg_select & 0x8) ? SIZE_24_BIT : SIZE_16_BIT;
 	
 	prg.operation.mem_latch_ctl = MEM_LATCH_HALF1;
 	prg.operation.mem_write_ctl = !(spec.is_write) ? MEM_READ : MEM_WRITE_FROM_MDR;
@@ -75,7 +77,9 @@ ind_1cyc_imm_rm_ (mucode_entry_spec spec)
 {
 	mucode_entry prg = base_entry_(spec);
 	prg.operation.srcs[0].location = DATA_LATCH_RM_1;
+	prg.operation.srcs[0].sign_extend = spec.reg_select & 0x8;
 	prg.operation.srcs[0].size = spec.size;
+	prg.operation.srcs[1].size = !(spec.reg_select & 0x8) ? SIZE_24_BIT : SIZE_16_BIT;
 
 	prg.operation.mem_latch_ctl = MEM_LATCH_HALF1;
 	prg.operation.mem_write_ctl = !(spec.is_write) ? MEM_READ : MEM_WRITE_FROM_MDR;
@@ -237,7 +241,7 @@ ind_2cyc_pgc_withimm_rm_ (mucode_entry_spec spec)
 	
 	prg.operation.srcs[1].location = (!(spec.reg_select & 0x10)) ? DATA_LATCH_IMM_1 : DATA_LATCH_RM_1;
 	prg.operation.srcs[1].size = spec.size;
-	prg.operation.srcs[1].sign_extend = (spec.size == SIZE_16_BIT);
+	prg.operation.srcs[1].sign_extend = spec.reg_select & 0x8;
 	
 	prg.operation.operation = ALU_ADD;
 	

@@ -78,7 +78,7 @@ decode_rm_specifier (pilot_decode_state *state, rm_spec rm, bool is_dest, bool s
 	{
 		// Short form immediate
 		src_affected->sign_extend = FALSE;
-		src_affected->location = !(state->rm_ops == 1) ? DATA_LATCH_SFI_1 : DATA_LATCH_SFI_2;
+		src_affected->location = !(state->rm_ops == 1) ? DATA_LATCH_SFI_2 : DATA_LATCH_SFI_1;
 	}
 	else if ((rm & 0x23) == 0x22)
 	{
@@ -125,14 +125,27 @@ decode_rm_specifier (pilot_decode_state *state, rm_spec rm, bool is_dest, bool s
 	else if ((rm & 0x3b) == 0x29)
 	{
 		// Absolute
-		run_mucode->size = !(rm & 0x04) ? SIZE_16_BIT : SIZE_24_BIT;
+		decode_queue_read_word(state);
+		if ((rm & 0x04) != 0x00)
+		{
+			decode_queue_read_word(state);
+		}
+		
+		run_mucode->entry_idx = !(state->rm_ops == 1) ? MU_IND_IMM_RM : MU_IND_IMM;
+		run_mucode->size = size;
 		run_mucode->reg_select = !(rm & 0x04) ? 0x8 : 0;
 	}
 	else if (src_affected && ((rm & 0x3b) == 0x21))
 	{
 		// Immediate
+		decode_queue_read_word(state);
+		if ((rm & 0x04) != 0x00)
+		{
+			decode_queue_read_word(state);
+		}
+		
 		src_affected->size = !(rm & 0x04) ? SIZE_16_BIT : SIZE_24_BIT;
-		src_affected->location = !(state->rm_ops == 1) ? DATA_LATCH_IMM_1 : DATA_LATCH_RM_1;
+		src_affected->location = !(state->rm_ops == 1) ? DATA_LATCH_RM_1 : DATA_LATCH_IMM_1;
 		src_affected->sign_extend = !(rm & 0x04);
 	}
 	else if ((rm & 0x23) == 0x20)

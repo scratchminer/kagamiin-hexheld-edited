@@ -5,7 +5,7 @@
 #include "types.h"
 
 #define ACCESS_REG_BITS_(state, r, size) fetch_data_(state, (size == SIZE_8_BIT ? DATA_REG_L0 : DATA_REG_P0) + r)
-#define READ_IMM_LATCH_(state, imm, size) (size == SIZE_24_BIT ? (((state->decoded_inst.imm_words[imm] & 0xff) << 16) | state->decoded_inst.imm_words[imm + 1]) : state->decoded_inst.imm_words[imm])
+#define READ_IMM_LATCH_(state, imm, size) (size == SIZE_24_BIT ? (((state->decoded_inst.imm_words[imm + 1] & 0xff) << 16) | state->decoded_inst.imm_words[imm]) : state->decoded_inst.imm_words[imm])
 
 // Placeholder
 void execute_unreachable_ ();
@@ -118,11 +118,11 @@ fetch_data_ (pilot_execute_state *state, data_bus_specifier src)
 		case DATA_LATCH_MEM_DATA:
 			return state->mem_data;
 		case DATA_LATCH_IMM_0:
-			return READ_IMM_LATCH_(state, 0, state->mucode_decoded_buffer.srcs[0].size);
+			return READ_IMM_LATCH_(state, 0, state->mucode_decoded_buffer.srcs[1].size);
 		case DATA_LATCH_IMM_1:
-			return READ_IMM_LATCH_(state, 1, state->mucode_decoded_buffer.srcs[0].size);
+			return READ_IMM_LATCH_(state, 1, state->mucode_decoded_buffer.srcs[1].size);
 		case DATA_LATCH_IMM_2:
-			return READ_IMM_LATCH_(state, 2, state->mucode_decoded_buffer.srcs[0].size);
+			return READ_IMM_LATCH_(state, 2, state->mucode_decoded_buffer.srcs[1].size);
 		case DATA_LATCH_IMM_HML:
 			return ((state->decoded_inst.imm_words[0] & 0xff) << 16) | state->decoded_inst.imm_words[1];
 		case DATA_LATCH_IMM_HML_RM:
@@ -132,9 +132,9 @@ fetch_data_ (pilot_execute_state *state, data_bus_specifier src)
 		case DATA_LATCH_SFI_2:
 			return (state->decoded_inst.imm_words[0] >> 8) & 0x000f;
 		case DATA_LATCH_RM_1:
-			return READ_IMM_LATCH_(state, state->decoded_inst.rm2_offset, state->mucode_decoded_buffer.srcs[0].size);
+			return READ_IMM_LATCH_(state, state->decoded_inst.rm2_offset, state->mucode_decoded_buffer.srcs[1].size);
 		case DATA_LATCH_RM_2:
-			return READ_IMM_LATCH_(state, state->decoded_inst.rm2_offset + 1, state->mucode_decoded_buffer.srcs[0].size);
+			return READ_IMM_LATCH_(state, state->decoded_inst.rm2_offset + 1, state->mucode_decoded_buffer.srcs[1].size);
 		case DATA_LATCH_RM_HML:
 			return ((state->decoded_inst.imm_words[state->decoded_inst.rm2_offset + 1] & 0xff) << 16) | state->decoded_inst.imm_words[state->decoded_inst.rm2_offset];
 		case DATA_REG_IMM_0_8:
@@ -376,6 +376,7 @@ execute_half1_mem_wait_ (pilot_execute_state *state)
 	{
 		if (Pilot_mem_data_wait(state->sys))
 		{
+			state->sys->interconnects.execute_memory_backoff = FALSE;
 			state->mem_access_waiting = FALSE;
 			if (state->mem_access_was_read)
 			{
@@ -397,6 +398,8 @@ execute_half1_mem_prepare_ (pilot_execute_state *state)
 {
 	if (state->control->mem_latch_ctl == MEM_LATCH_HALF1)
 	{
+		state->mem_addr = state->alu_input_latches[0];
+		
 		if (state->control->mem_write_ctl != MEM_READ)
 		{
 			switch (state->control->mem_write_ctl)
@@ -1070,18 +1073,18 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 		}
 	}
 	
+	if (state->sequencer_phase == EXEC_SEQ_CORE_OP)
+	{
+		state->control = &state->decoded_inst.core_op;
+		state->sequencer_phase = EXEC_SEQ_CORE_OP_EXECUTED;
+	}
+	
 	if (state->sequencer_phase == EXEC_SEQ_RUN_BEFORE)
 	{
 		if (!execute_sequencer_mucode_run_(state))
 		{
 			state->sequencer_phase = EXEC_SEQ_CORE_OP;
 		}
-	}
-	
-	if (state->sequencer_phase == EXEC_SEQ_CORE_OP)
-	{
-		state->control = &state->decoded_inst.core_op;		
-		state->sequencer_phase = EXEC_SEQ_CORE_OP_EXECUTED;
 	}
 	
 	if (state->sequencer_phase == EXEC_SEQ_RUN_AFTER)
@@ -1197,6 +1200,8 @@ pilot_execute_half2 (pilot_execute_state *state)
 	if (state->execution_phase == EXEC_HALF2_ADVANCE_SEQUENCER)
 	{
 		execute_half2_advance_sequencer_(state);
+		state->sys->interconnects.execute_memory_backoff = (state->control->mem_latch_ctl != MEM_NO_LATCH && !state->control->mem_access_suppress);
+		
 		state->execution_phase = EXEC_HALF1_READY;
 	}
 }
