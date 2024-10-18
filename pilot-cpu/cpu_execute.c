@@ -376,7 +376,6 @@ execute_half1_mem_wait_ (pilot_execute_state *state)
 	{
 		if (Pilot_mem_data_wait(state->sys))
 		{
-			state->sys->interconnects.execute_memory_backoff = FALSE;
 			state->mem_access_waiting = FALSE;
 			if (state->mem_access_was_read)
 			{
