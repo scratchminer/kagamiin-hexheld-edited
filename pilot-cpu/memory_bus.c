@@ -68,11 +68,11 @@ mem_write (Pilot_system *sys)
 	
 	if (addr <= WRAM_END)
 	{
-		// try to read WRAM
+		// try to write WRAM
 	}
 	else if (addr <= VRAM_END)
 	{
-		// try to read VRAM
+		// try to write VRAM
 	}
 	else if (addr <= CART_CS2_END)
 	{
@@ -96,8 +96,8 @@ mem_write (Pilot_system *sys)
 	}
 	else if (addr <= HRAM_END)
 	{
-		sys->hram[addr] = sys->memctl.data_reg_out & 0xff;
-		if (sys->memctl.is_16bit) sys->hram[addr + 1] = sys->memctl.data_reg_out >> 8;
+		sys->hram[addr - HRAM_START] = sys->memctl.data_reg_out & 0xff;
+		if (sys->memctl.is_16bit) sys->hram[addr - HRAM_START + 1] = sys->memctl.data_reg_out >> 8;
 		return TRUE;
 	}
 	

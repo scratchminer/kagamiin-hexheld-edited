@@ -447,6 +447,7 @@ execute_half1_mem_assert_ (pilot_execute_state *state)
 		}
 		
 		state->mem_access_waiting = TRUE;
+		state->control->mem_latch_ctl = MEM_NO_LATCH;
 	}
 	state->execution_phase = EXEC_HALF2_READY;
 }
@@ -835,8 +836,10 @@ execute_half2_mem_assert_ (pilot_execute_state *state)
 			{
 				return;
 			}
+			state->mem_access_was_read = FALSE;
 		}
 		state->mem_access_waiting = TRUE;
+		state->control->mem_latch_ctl = MEM_NO_LATCH;
 	}
 	
 	state->execution_phase = EXEC_HALF2_ADVANCE_SEQUENCER;

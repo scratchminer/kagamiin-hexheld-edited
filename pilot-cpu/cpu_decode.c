@@ -1054,8 +1054,6 @@ decode_inst_ (pilot_decode_state *state)
 	
 	uint16_t opcode = work_regs->imm_words[0];
 	
-	//printf("%04x\n", opcode);
-	
 	if ((opcode & 0xf000) >= 0xe000)
 	{
 		// Branch instructions

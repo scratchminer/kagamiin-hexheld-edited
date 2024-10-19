@@ -52,9 +52,10 @@ pilot_fetch_half1 (pilot_fetch_state *state)
 		if (!(*fetch_word_semaph) && state->queue_words_full[4])
 		{
 			*fetch_word = state->queue_words[4];
-			*fetch_word_semaph = TRUE;
-			
 			state->queue_words_full[4] = FALSE;
+			
+			state->sys->interconnects.fetch_addr = (state->sys->interconnects.fetch_addr + 2) & 0xfffffe;
+			*fetch_word_semaph = TRUE;
 		}
 		else
 		{
@@ -91,6 +92,7 @@ pilot_fetch_half2 (pilot_fetch_state *state)
 			}
 			
 			state->mem_addr = state->sys->interconnects.execute_branch_addr;
+			state->sys->interconnects.fetch_addr = state->sys->interconnects.execute_branch_addr;
 			*execute_branch = FALSE;
 		}
 		
@@ -124,9 +126,7 @@ pilot_fetch_half2 (pilot_fetch_state *state)
 		}
 		
 		state->mem_access_waiting = TRUE;
-		
 		state->mem_addr = (state->mem_addr + 2) & 0xfffffe;
-		state->sys->interconnects.fetch_addr = state->mem_addr;
 		
 		state->fetch_phase = FETCH_HALF1_READY;
 	}
