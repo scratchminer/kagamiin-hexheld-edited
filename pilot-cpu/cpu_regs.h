@@ -21,7 +21,7 @@ typedef struct {
 	// used for MULS / MULU / DIVS / DIVU to store the RM operand
 	uint32_t factor;
 	
-	// used for DJNZ / REPI to save the zero flag
+	// used for DJNZ / REPI / REPR to save the zero flag
 	bool temp_z;
 	
 	// used only for HALT to disable the clock until an interrupt happens

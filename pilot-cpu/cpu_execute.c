@@ -969,10 +969,6 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 	
 	if (state->sequencer_phase == EXEC_SEQ_FINAL_STEPS)
 	{
-		if (state->decoded_inst.interrupt)
-		{
-			state->sequencer_phase = EXEC_SEQ_SIGNAL_INTERRUPT;
-		}
 		if (state->decoded_inst.branch)
 		{
 			state->sequencer_phase = EXEC_SEQ_SIGNAL_BRANCH;
@@ -995,6 +991,10 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 		{
 			state->sequencer_phase = EXEC_SEQ_REPEAT_OP;
 			state->mucode_control = state->repeat_type;
+		}
+		if (state->decoded_inst.interrupt)
+		{
+			state->sequencer_phase = EXEC_SEQ_SIGNAL_INTERRUPT;
 		}
 		else if (state->repeat_reg_type.entry_idx != MU_NONE)
 		{
@@ -1114,7 +1114,7 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 	{
 		if (!execute_sequencer_mucode_run_(state))
 		{
-			if (state->used_z)
+			if (state->used_z || (fetch_data_(DATA_REG_F) & F_ZERO))
 			{
 				state->repeat_reg_type.entry_idx = MU_NONE;
 				state->sequencer_phase = EXEC_SEQ_FINAL_STEPS;
