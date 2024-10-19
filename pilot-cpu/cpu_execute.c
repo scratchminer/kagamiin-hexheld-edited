@@ -1114,7 +1114,7 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 	{
 		if (!execute_sequencer_mucode_run_(state))
 		{
-			if (state->used_z || (fetch_data_(DATA_REG_F) & F_ZERO))
+			if (state->used_z || (fetch_data_(state, DATA_REG_F) & F_ZERO))
 			{
 				state->repeat_reg_type.entry_idx = MU_NONE;
 				state->sequencer_phase = EXEC_SEQ_FINAL_STEPS;
