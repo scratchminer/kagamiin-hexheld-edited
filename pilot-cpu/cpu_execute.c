@@ -1036,6 +1036,7 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 			state->sys->interconnects.execute_branch_addr = execute_sequencer_branch_addr_(state);
 			state->sys->interconnects.execute_branch = TRUE;
 			state->sequencer_phase = EXEC_SEQ_WAIT_NEXT_INS;
+			state->sys->interconnects.decoded_inst_semaph = FALSE;
 		}
 	}
 	
@@ -1053,6 +1054,7 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 				state->sys->interconnects.execute_branch_addr = execute_sequencer_branch_addr_(state);
 				state->sys->interconnects.execute_branch = TRUE;
 				state->sequencer_phase = EXEC_SEQ_WAIT_NEXT_INS;
+				state->sys->interconnects.decoded_inst_semaph = FALSE;
 			}
 		}
 	}
@@ -1155,6 +1157,7 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 				state->sys->interconnects.execute_branch_addr = execute_sequencer_branch_addr_(state);
 				state->sys->interconnects.execute_branch = TRUE;
 				state->sequencer_phase = EXEC_SEQ_WAIT_NEXT_INS;
+				state->sys->interconnects.decoded_inst_semaph = FALSE;
 			}
 		}
 		else
