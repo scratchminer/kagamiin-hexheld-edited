@@ -104,18 +104,8 @@ static mucode_entry
 ind_1cyc_reg_ (mucode_entry_spec spec)
 {
 	mucode_entry prg = base_entry_(spec);
-	prg.operation.srcs[0].size = spec.size;
-	switch (spec.size)
-	{
-		case SIZE_8_BIT:
-			prg.operation.srcs[0].location = DATA_REG_L0 + (spec.reg_select & 0x7);
-			break;
-		case SIZE_16_BIT:
-			prg.operation.srcs[0].location = DATA_REG_W0 + (spec.reg_select & 0x7);
-			break;
-		case SIZE_24_BIT:
-			prg.operation.srcs[0].location = DATA_REG_P0 + (spec.reg_select & 0x7);
-	}
+	prg.operation.srcs[0].size = SIZE_24_BIT;
+	prg.operation.srcs[0].location = DATA_REG_P0 + (spec.reg_select & 0x7);
 	
 	prg.operation.mem_latch_ctl = MEM_LATCH_HALF1;
 	prg.operation.mem_write_ctl = !(spec.is_write) ? MEM_READ : MEM_WRITE_FROM_MDR;
@@ -325,7 +315,6 @@ after_autoidx_ (mucode_entry_spec spec)
 {
 	mucode_entry prg = ind_1cyc_reg_(spec);
 	prg.operation.srcs[1].location = DATA_SIZE;
-	prg.operation.srcs[1].size = SIZE_24_BIT;
 	
 	prg.operation.src2_add1 = FALSE;
 	prg.operation.src2_negate = FALSE;

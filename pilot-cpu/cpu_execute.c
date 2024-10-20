@@ -618,7 +618,7 @@ alu_modify_flags_ (pilot_execute_state *state, uint8_t flags, uint32_t operands[
 		alu_carry = (carries & 0x800000) != 0;
 		alu_sign = (result & 0x800000) != 0;
 		alu_overflow = ((operands[1] ^ result) & (operands[0] ^ result) & 0x800000) != 0;
-		alu_zero = result == 0;
+		alu_zero = (result & 0xffffff) == 0;
 		alu_parity ^= (alu_parity >> 8) ^ (alu_parity >> 16);
 	}
 	alu_carry ^= state->control->invert_carries;
@@ -777,8 +777,10 @@ execute_half2_result_latch_ (pilot_execute_state *state)
 	{
 		uint32_t flags_data = alu_modify_flags_(state, flags, operands, state->alu_output_latch, carries);
 		write_data_(state, DATA_REG_F, &flags_data);
+		write_data_(state, state->control->dest, &state->alu_output_latch);
+		
+		state->control->operation = ALU_OFF;
 	}
-	write_data_(state, state->control->dest, &state->alu_output_latch);
 	
 	state->execution_phase = EXEC_HALF2_MEM_PREPARE;
 }
@@ -1141,6 +1143,7 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 		else
 		{
 			state->sequencer_phase = EXEC_SEQ_WAIT_NEXT_INS;
+			state->sys->interconnects.decoded_inst_semaph = FALSE;
 		}
 	}
 	

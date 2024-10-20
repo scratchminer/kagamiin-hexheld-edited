@@ -661,7 +661,7 @@ decode_inst_arithlogic_ (pilot_decode_state *state, uint16_t opcode)
 			// from RM src
 			rm_spec rm = opcode & 0x003f;
 			decode_rm_specifier(state, rm, FALSE, FALSE, size);
-			core_op->srcs[1].sign_extend = FALSE;
+			core_op->srcs[1].sign_extend = operation == 7;
 			
 			core_op->srcs[0].location = DATA_REG_IMM_0_8;
 			core_op->srcs[0].size = size;
@@ -700,7 +700,7 @@ decode_inst_arithlogic_ (pilot_decode_state *state, uint16_t opcode)
 		}
 		
 		core_op->srcs[1].size = size;
-		core_op->srcs[1].sign_extend = FALSE;
+		core_op->srcs[1].sign_extend = operation == 7;
 		
 		rm_spec rm = opcode & 0x003f;
 		
