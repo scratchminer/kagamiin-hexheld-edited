@@ -57,10 +57,6 @@ pilot_fetch_half1 (pilot_fetch_state *state)
 			state->sys->interconnects.fetch_addr = (state->sys->interconnects.fetch_addr + 2) & 0xfffffe;
 			*fetch_word_semaph = TRUE;
 		}
-		else
-		{
-			*fetch_word_semaph = FALSE;
-		}
 		
 		state->fetch_phase = FETCH_HALF2_READY;
 	}

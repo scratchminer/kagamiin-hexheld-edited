@@ -29,9 +29,11 @@ base_entry_ (mucode_entry_spec spec)
 		};
 	}
 	
+	prg.operation.srcs[0].location = DATA_ZERO;
 	prg.operation.srcs[0].size = SIZE_24_BIT;
 	prg.operation.srcs[0].sign_extend = FALSE;
 
+	prg.operation.srcs[1].location = DATA_ZERO;
 	prg.operation.srcs[1].size = spec.size;
 	prg.operation.srcs[1].sign_extend = FALSE;
 	
@@ -310,6 +312,7 @@ static mucode_entry
 ind_2cyc_mar_post_auto_ (mucode_entry_spec spec)
 {
 	mucode_entry prg = ind_2cyc_mar_auto_(spec);
+	prg.operation.mem_latch_ctl = MEM_LATCH_HALF2;
 	
 	prg.next.entry_idx = MU_POST_AUTOIDX;
 	prg.next.size = SIZE_24_BIT;
@@ -330,8 +333,10 @@ after_autoidx_ (mucode_entry_spec spec)
 	prg.operation.operation = ALU_ADD;
 	
 	prg.operation.dest = prg.operation.srcs[0].location;
-	
 	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
+	
+	prg.next.entry_idx = MU_NONE;
+	
 	return prg;
 }
 

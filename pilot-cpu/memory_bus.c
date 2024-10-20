@@ -17,9 +17,6 @@
 bool
 mem_read (Pilot_system *sys)
 {
-	if (sys->memctl.is_16bit) printf("RD16 %06x\n", sys->memctl.addr_reg);
-	else printf("RD08 %06x\n", sys->memctl.addr_reg);
-	
 	uint32_t addr = sys->memctl.addr_reg;
 	if (addr <= WRAM_END)
 	{
@@ -62,9 +59,6 @@ bool
 mem_write (Pilot_system *sys)
 {
 	uint32_t addr = sys->memctl.addr_reg;
-	
-	if (sys->memctl.is_16bit) printf("WR16 %04x -> %06x\n", sys->memctl.data_reg_out, sys->memctl.addr_reg);
-	else printf("WR08 %02x -> %06x\n", sys->memctl.data_reg_out & 0xff, sys->memctl.addr_reg);
 	
 	if (addr <= WRAM_END)
 	{
@@ -121,6 +115,9 @@ Pilot_mem_addr_read_assert (Pilot_system *sys, bool is_16bit, uint32_t addr)
 {
 	if (sys->memctl.state == MCTL_READY)
 	{
+		if (is_16bit) printf("RD16 %06x\n", addr);
+		else printf("RD08 %06x\n", addr);
+		
 		sys->memctl.addr_reg = addr;
 		sys->memctl.is_16bit = is_16bit;
 		sys->memctl.state = MCTL_MEM_R_BUSY;
@@ -137,6 +134,9 @@ Pilot_mem_addr_write_assert (Pilot_system *sys, bool is_16bit, uint32_t addr, ui
 {
 	if (sys->memctl.state == MCTL_READY)
 	{
+		if (is_16bit) printf("WR16 %04x -> %06x\n", data, addr);
+		else printf("WR08 %02x -> %06x\n", data & 0xff, addr);
+		
 		sys->memctl.addr_reg = addr;
 		sys->memctl.data_reg_out = data;
 		sys->memctl.is_16bit = is_16bit;
@@ -164,6 +164,11 @@ void
 Pilot_memctl_tick (Pilot_system *sys)
 {
 	sys->memctl.data_valid = FALSE;
+	
+	if (sys->memctl.state == MCTL_READY)
+	{
+		printf("WAIT\n");
+	}
 	if (sys->memctl.state == MCTL_MEM_R_BUSY && mem_read(sys))
 	{
 		sys->memctl.state = MCTL_READY;

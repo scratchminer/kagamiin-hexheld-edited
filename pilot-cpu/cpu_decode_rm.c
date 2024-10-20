@@ -23,7 +23,7 @@ decode_rm_specifier (pilot_decode_state *state, rm_spec rm, bool is_dest, bool s
 	
 	if (state->rm_ops == 2)
 	{
-		work_regs->rm2_offset = state->inst_length;
+		work_regs->rm2_offset = state->words_to_read;
 	}
 	
 	if (src_is_left)
@@ -63,11 +63,13 @@ decode_rm_specifier (pilot_decode_state *state, rm_spec rm, bool is_dest, bool s
 		{
 			// destination only, not part of core op; no fetch
 			run_mucode = &work_regs->run_after;
+			core_op->dest = DATA_LATCH_MEM_DATA;
 		}
 		else
 		{
 			// source only, fetch
 			run_mucode = &work_regs->run_before;
+			core_op->dest = DATA_LATCH_MEM_DATA;
 		}
 		
 		run_mucode->is_write = is_dest;
@@ -152,18 +154,21 @@ decode_rm_specifier (pilot_decode_state *state, rm_spec rm, bool is_dest, bool s
 	{
 		// Register indirect with post-increment
 		run_mucode->entry_idx = MU_IND_REG_POST_AUTO;
+		run_mucode->size = size;
 		run_mucode->reg_select = (rm >> 2) & 0x7;
 	}
 	else if ((rm & 0x23) == 0x02)
 	{
 		// Register indirect
 		run_mucode->entry_idx = MU_IND_REG;
+		run_mucode->size = size;
 		run_mucode->reg_select = (rm >> 2) & 0x7;
 	}
 	else if ((rm & 0x23) == 0x01)
 	{
 		// Register relative
 		run_mucode->entry_idx = MU_IND_REG_WITH_IMM;
+		run_mucode->size = size;
 		run_mucode->reg_select = (rm >> 2) & 0x7;
 	}
 	else if (src_affected && ((rm & 0x23) == 0x00))
@@ -171,9 +176,10 @@ decode_rm_specifier (pilot_decode_state *state, rm_spec rm, bool is_dest, bool s
 		// Register direct
 		uint8_t reg = (rm >> 2) & 0x7;
 		src_affected->location = (size == SIZE_8_BIT) ? DATA_REG_L0 + reg : DATA_REG_P0 + reg;
+		if (is_dest) core_op->dest = (size == SIZE_8_BIT) ? DATA_REG_L0 + reg : DATA_REG_P0 + reg;
 	}
 	
-	if (state->rm_ops == 2)
+	if (rm_requires_mem_fetch_(rm) && state->rm_ops == 2)
 	{
 		run_mucode->reg_select |= 0x10;
 	}

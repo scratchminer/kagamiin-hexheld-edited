@@ -521,18 +521,20 @@ decode_inst_ld_other_ (pilot_decode_state *state, uint16_t opcode)
 	core_op->flag_write_mask = 0;
 	core_op->flag_v_mode = FLAG_V_NORMAL;
 	core_op->flag_z_mode = FLAG_Z_NORMAL;
-
+	
 	// left operand is never fetched and is always zero
 	core_op->srcs[0].location = DATA_ZERO;
 	core_op->srcs[0].size = SIZE_24_BIT;
 	core_op->operation = ALU_OR;
-
+	
 	core_op->dest = DATA_REG_IMM_0_8;
 	core_op->shifter_mode = SHIFTER_NONE;
 	
 	if ((opcode & 0x0800) == 0x0000)
 	{
 		// LD.P r24, hml
+		decode_queue_read_word(state);
+		
 		core_op->srcs[1].location = DATA_LATCH_IMM_HML;
 		core_op->srcs[1].size = SIZE_24_BIT;
 		core_op->srcs[1].sign_extend = FALSE;
@@ -602,6 +604,7 @@ decode_inst_arithlogic_ (pilot_decode_state *state, uint16_t opcode)
 			core_op->src2_add_carry = FALSE;
 			core_op->src2_negate = TRUE;
 			core_op->flag_write_mask = F_SIGN | F_ZERO | F_OVERFLOW | F_CARRY;
+			core_op->invert_carries = TRUE;
 			break;
 		case 15:
 		{
@@ -644,6 +647,7 @@ decode_inst_arithlogic_ (pilot_decode_state *state, uint16_t opcode)
 					core_op->src2_add_carry = FALSE;
 					core_op->src2_negate = TRUE;
 					core_op->flag_write_mask = F_SIGN | F_ZERO | F_OVERFLOW | F_CARRY;
+					core_op->invert_carries = TRUE;
 					break;
 			}
 		}
@@ -652,26 +656,58 @@ decode_inst_arithlogic_ (pilot_decode_state *state, uint16_t opcode)
 	// Decode operands
 	if (!uses_imm)
 	{
-		// from RM src
-		rm_spec rm = opcode & 0x003f;
-		decode_rm_specifier(state, rm, FALSE, FALSE, size);
-		core_op->srcs[1].sign_extend = FALSE;
-		
-		core_op->srcs[0].location = DATA_REG_IMM_0_8;
-		core_op->srcs[0].size = size;
-		core_op->srcs[0].sign_extend = FALSE;
-		return;
+		if (!(operation & 0x8))
+		{
+			// from RM src
+			rm_spec rm = opcode & 0x003f;
+			decode_rm_specifier(state, rm, FALSE, FALSE, size);
+			core_op->srcs[1].sign_extend = FALSE;
+			
+			core_op->srcs[0].location = DATA_REG_IMM_0_8;
+			core_op->srcs[0].size = size;
+			core_op->srcs[0].sign_extend = FALSE;
+			
+			if (operation == 7)
+			{
+				core_op->dest = DATA_ZERO;
+			}
+			return;
+		}
+		else
+		{
+			// from/to RM rmw
+			rm_spec rm = opcode & 0x003f;
+			decode_rm_specifier(state, rm, TRUE, TRUE, size);
+			core_op->srcs[0].sign_extend = FALSE;
+			
+			core_op->srcs[1].location = DATA_REG_IMM_0_8;
+			core_op->srcs[1].size = size;
+			core_op->srcs[1].sign_extend = FALSE;
+			return;
+		}
 	}
 	else
 	{
 		// from immediate src
-		rm_spec rm = opcode & 0x003f;
-		decode_rm_specifier(state, rm, TRUE, TRUE, size);
-		core_op->srcs[0].sign_extend = FALSE;
+		decode_queue_read_word(state);
+		if (size == SIZE_24_BIT)
+		{
+			decode_queue_read_word(state);
+			core_op->srcs[1].location = DATA_LATCH_IMM_HML_RM;
+		}
+		else {
+			core_op->srcs[1].location = DATA_LATCH_IMM_1;
+		}
 		
-		core_op->srcs[1].location = DATA_LATCH_IMM_1;
 		core_op->srcs[1].size = size;
 		core_op->srcs[1].sign_extend = FALSE;
+		
+		rm_spec rm = opcode & 0x003f;
+		
+		// the RM operand comes second in memory
+		state->rm_ops++;
+		decode_rm_specifier(state, rm, operation != 7, TRUE, size);
+		core_op->srcs[0].sign_extend = FALSE;
 		
 		if (operation == 7)
 		{

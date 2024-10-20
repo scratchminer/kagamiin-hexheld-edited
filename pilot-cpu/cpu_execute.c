@@ -4,7 +4,7 @@
 #include "memory.h"
 #include "types.h"
 
-#define ACCESS_REG_BITS_(state, r, size) fetch_data_(state, (size == SIZE_8_BIT ? DATA_REG_L0 : DATA_REG_P0) + r)
+#define ACCESS_REG_BITS_(state, r, size) state->sys->core.regs[r] & (((size) == SIZE_8_BIT) ? 0xff : (((size) == SIZE_16_BIT) ? 0xffff : 0xffffff))
 #define READ_IMM_LATCH_(state, imm, size) (size == SIZE_24_BIT ? (((state->decoded_inst.imm_words[imm + 1] & 0xff) << 16) | state->decoded_inst.imm_words[imm]) : state->decoded_inst.imm_words[imm])
 
 // Placeholder
@@ -775,7 +775,8 @@ execute_half2_result_latch_ (pilot_execute_state *state)
 	
 	if (state->control->operation != ALU_OFF)
 	{
-		flags = alu_modify_flags_(state, flags, operands, state->alu_output_latch, carries);
+		uint32_t flags_data = alu_modify_flags_(state, flags, operands, state->alu_output_latch, carries);
+		write_data_(state, DATA_REG_F, &flags_data);
 	}
 	write_data_(state, state->control->dest, &state->alu_output_latch);
 	
@@ -995,7 +996,7 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 			state->sequencer_phase = EXEC_SEQ_REPEAT_OP;
 			state->mucode_control = state->repeat_type;
 		}
-		if (state->decoded_inst.interrupt)
+		else if (state->decoded_inst.interrupt)
 		{
 			state->sequencer_phase = EXEC_SEQ_SIGNAL_INTERRUPT;
 		}
