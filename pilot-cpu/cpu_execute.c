@@ -871,7 +871,7 @@ execute_sequencer_interrupt_test_ (pilot_execute_state *state)
 {
 	if (state->decoded_inst.interrupt_cond >= COND_IRQ1 && state->decoded_inst.interrupt_cond <= COND_IRQ7)
 	{
-		return fetch_data_(state, DATA_REG_IRL) > (state->decoded_inst.interrupt_cond - COND_IRQ1);
+		return fetch_data_(state, DATA_REG_IRL) <= state->decoded_inst.interrupt_cond;
 	}
 	
 	return TRUE;

@@ -328,7 +328,7 @@ typedef struct
 	enum
 	{
 		COND_NMI = 0,		// NMI
-		COND_IRQ1,		// interrupt request level >= IRQ number
+		COND_IRQ1,		// interrupt request level <= IRQ number
 		COND_IRQ2,
 		COND_IRQ3,
 		COND_IRQ4,
