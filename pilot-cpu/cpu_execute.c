@@ -867,6 +867,17 @@ execute_sequencer_mucode_run_ (pilot_execute_state *state)
 }
 
 static bool
+execute_sequencer_interrupt_test_ (pilot_execute_state *state)
+{
+	if (state->decoded_inst.interrupt_cond >= COND_IRQ1 && state->decoded_inst.interrupt_cond <= COND_IRQ7)
+	{
+		return fetch_data_(state, DATA_REG_IRL) > (state->decoded_inst.interrupt_cond - COND_IRQ1);
+	}
+	
+	return TRUE;
+}
+
+static bool
 execute_sequencer_branch_test_ (pilot_execute_state *state)
 {
 	uint8_t flags = fetch_data_(state, DATA_REG_F);
@@ -874,11 +885,6 @@ execute_sequencer_branch_test_ (pilot_execute_state *state)
 	bool carry = (flags & F_CARRY) != 0;
 	bool zero = (flags & F_ZERO) != 0;
 	bool sign = (flags & F_SIGN) != 0;
-	
-	if (state->decoded_inst.branch_cond >= COND_IRQ1 && state->decoded_inst.branch_cond <= COND_IRQ7)
-	{
-		return fetch_data_(state, DATA_REG_IRL) > (state->decoded_inst.branch_cond - COND_IRQ1);
-	}
 	
 	switch (state->decoded_inst.branch_cond)
 	{
@@ -915,8 +921,6 @@ execute_sequencer_branch_test_ (pilot_execute_state *state)
 			return TRUE;
 		case COND_DJNZ:
 			return !state->sys->core.temp_z;
-		case COND_NMI:
-			return TRUE;
 		default:
 			execute_unreachable_();
 			return FALSE;
@@ -926,6 +930,11 @@ execute_sequencer_branch_test_ (pilot_execute_state *state)
 static uint32_t
 execute_sequencer_branch_addr_ (pilot_execute_state *state)
 {
+	if (state->decoded_inst.interrupt && !state->decoded_inst.branch)
+	{
+		return 0xffcf00 | (state->decoded_inst.interrupt_cond << 4);
+	}
+	
 	switch (state->decoded_inst.branch_dest_type)
 	{
 		case BR_MAR:
@@ -949,8 +958,6 @@ execute_sequencer_branch_addr_ (pilot_execute_state *state)
 			return 0xffcfd0;
 		case BR_ILLEGAL:
 			return 0xffcfe0;
-		case BR_IRQ:
-			return 0xffcf00 | ((state->decoded_inst.branch_cond - COND_NMI) << 4);
 		default:
 			execute_unreachable_();
 			return 0;
@@ -1047,9 +1054,14 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 		state->mucode_control.entry_idx = MU_PUSH_PGC_IND_SP_AUTO;
 		if (!execute_sequencer_mucode_run_(state))
 		{
-			if (state->decoded_inst.interrupt)
+			if (state->decoded_inst.interrupt && !state->decoded_inst.branch)
 			{
 				state->sequencer_phase = EXEC_SEQ_PUSH_WF;
+			}
+			else if (state->decoded_inst.interrupt)
+			{
+				state->decoded_inst.branch = FALSE;
+				state->sequencer_phase = EXEC_SEQ_FINAL_STEPS;
 			}
 			else
 			{
@@ -1136,14 +1148,13 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 	
 	if (state->sequencer_phase == EXEC_SEQ_SIGNAL_INTERRUPT)
 	{
-		if (execute_sequencer_branch_test_(state))
+		if (execute_sequencer_interrupt_test_(state))
 		{
 			state->sequencer_phase = EXEC_SEQ_PUSH_PGC;
 		}
 		else
 		{
 			state->sequencer_phase = EXEC_SEQ_WAIT_NEXT_INS;
-			state->sys->interconnects.decoded_inst_semaph = FALSE;
 		}
 	}
 	
@@ -1166,6 +1177,12 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 		else
 		{
 			state->sequencer_phase = EXEC_SEQ_WAIT_NEXT_INS;
+		}
+		
+		if (state->decoded_inst.interrupt)
+		{
+			state->decoded_inst.branch = FALSE;
+			state->sequencer_phase = EXEC_SEQ_SIGNAL_INTERRUPT;
 		}
 	}
 }

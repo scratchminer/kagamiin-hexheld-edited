@@ -323,15 +323,19 @@ typedef struct
 		COND_ALWAYS,		// always
 		COND_ALWAYS_CALL,	// always, but used for calls
 		COND_DJNZ,		// nonzero, but uses the temp_z latch
-		COND_NMI,		// always, but used for NMI
-		COND_IRQ1,		// interrupt request level is greater than or equal
+	} branch_cond;
+	
+	enum
+	{
+		COND_NMI = 0,		// NMI
+		COND_IRQ1,		// interrupt request level >= IRQ number
 		COND_IRQ2,
 		COND_IRQ3,
 		COND_IRQ4,
 		COND_IRQ5,
 		COND_IRQ6,
 		COND_IRQ7
-	} branch_cond;
+	} interrupt_cond;
 	
 	enum
 	{
@@ -339,8 +343,7 @@ typedef struct
 		BR_HML,			// JP hml / JR.L / CALL hml / CR.L (deferred resolution, since the specific type depends on bit 0 of HML)
 		BR_RESTART,		// RST
 		BR_DIV_ZERO,		// Divide by Zero Exception
-		BR_ILLEGAL,		// Illegal Instruction Exception
-		BR_IRQ,			// NMI and the seven IRQs
+		BR_ILLEGAL		// Illegal Instruction Exception
 	} branch_dest_type;
 	
 	// Offset of the second RM operand
