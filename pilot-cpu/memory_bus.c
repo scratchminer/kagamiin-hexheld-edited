@@ -9,7 +9,7 @@
 #define CART_ROM_END	0xffdfff
 #define TMRAM_END	0xffefff
 #define OAM_END		0xfff27f
-#define HCIO_START	0xfff300
+#define LCDIO_END	0xfff300
 #define HCIO_END	0xfff3ff
 #define HRAM_START	0xfff400
 #define HRAM_END	0xffffff
@@ -42,9 +42,13 @@ mem_read (Pilot_system *sys)
 	{
 		// sprite attribute RAM
 	}
-	else if (HCIO_START <= addr && addr <= HCIO_END)
+	else if (addr <= LCDIO_END)
 	{
-		// memory mapped I/O
+		// Radar's I/O registers
+	}
+	else if (addr <= HCIO_END)
+	{
+		// other memory mapped I/O
 	}
 	else if (addr <= HRAM_END)
 	{
@@ -84,9 +88,13 @@ mem_write (Pilot_system *sys)
 	{
 		// sprite attribute RAM
 	}
-	else if (HCIO_START <= addr && addr <= HCIO_END)
+	else if (addr <= LCDIO_END)
 	{
-		// memory mapped I/O
+		// Radar's I/O registers
+	}
+	else if (addr <= HCIO_END)
+	{
+		// other memory mapped I/O
 	}
 	else if (addr <= HRAM_END)
 	{
