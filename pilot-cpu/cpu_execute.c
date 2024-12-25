@@ -7,9 +7,6 @@
 #define ACCESS_REG_BITS_(state, r, size) state->sys->core.regs[r] & (((size) == SIZE_8_BIT) ? 0xff : (((size) == SIZE_16_BIT) ? 0xffff : 0xffffff))
 #define READ_IMM_LATCH_(state, imm, size) (size == SIZE_24_BIT ? (((state->decoded_inst.imm_words[imm + 1] & 0xff) << 16) | state->decoded_inst.imm_words[imm]) : state->decoded_inst.imm_words[imm])
 
-// Placeholder
-void execute_unreachable_ ();
-
 static void
 execute_invalid_opcode_ (pilot_execute_state *state)
 {
@@ -44,6 +41,16 @@ fetch_data_ (pilot_execute_state *state, data_bus_specifier src)
 				else
 					return 4;
 			}
+		}
+		case DATA_NUM_BITS:
+		{
+			data_size_spec size = state->mucode_decoded_buffer.srcs[1].size;
+			if (size == SIZE_8_BIT)
+				return 8;
+			else if (size == SIZE_16_BIT)
+				return 16;
+			else
+				return 24;
 		}
 		case DATA_REG_L0:
 			return state->sys->core.regs[0] & 0xff;
@@ -105,24 +112,22 @@ fetch_data_ (pilot_execute_state *state, data_bus_specifier src)
 			return state->sys->core.repi;
 		case DATA_LATCH_REPR:
 			return state->sys->core.repr;
-		case DATA_LATCH_PRODUCT_LO:
-			return state->sys->core.product_low;
-		case DATA_LATCH_PRODUCT_HI:
-			return state->sys->core.product_high;
-		case DATA_LATCH_FACTOR:
-			return state->sys->core.factor;
+		case DATA_LATCH_FACTOR_A:
+			return state->sys->core.factor_a;
+		case DATA_LATCH_FACTOR_B:
+			return state->sys->core.factor_b;
 		case DATA_REG_R0:
-			return ACCESS_REG_BITS_(state, 0, state->mucode_decoded_buffer.srcs[0].size);
+			return ACCESS_REG_BITS_(state, 0, state->control->srcs[0].size);
 		case DATA_LATCH_MEM_ADDR:
 			return state->mem_addr;
 		case DATA_LATCH_MEM_DATA:
 			return state->mem_data;
 		case DATA_LATCH_IMM_0:
-			return READ_IMM_LATCH_(state, 0, state->mucode_decoded_buffer.srcs[1].size);
+			return READ_IMM_LATCH_(state, 0, state->control->srcs[1].size);
 		case DATA_LATCH_IMM_1:
-			return READ_IMM_LATCH_(state, 1, state->mucode_decoded_buffer.srcs[1].size);
+			return READ_IMM_LATCH_(state, 1, state->control->srcs[1].size);
 		case DATA_LATCH_IMM_2:
-			return READ_IMM_LATCH_(state, 2, state->mucode_decoded_buffer.srcs[1].size);
+			return READ_IMM_LATCH_(state, 2, state->control->srcs[1].size);
 		case DATA_LATCH_IMM_HML:
 			return ((state->decoded_inst.imm_words[0] & 0xff) << 16) | state->decoded_inst.imm_words[1];
 		case DATA_LATCH_IMM_HML_RM:
@@ -168,7 +173,7 @@ fetch_data_ (pilot_execute_state *state, data_bus_specifier src)
 			return ACCESS_REG_BITS_(state, (state->decoded_inst.imm_words[state->decoded_inst.rm2_offset + 1] >> 8) & 0x7, state->decoded_inst.imm_words[state->decoded_inst.rm2_offset + 1] >> 14);
 		}
 		case DATA_REG_REPR:
-			return ACCESS_REG_BITS_(state, state->sys->core.repr & 0x7, state->mucode_decoded_buffer.srcs[0].size);
+			return ACCESS_REG_BITS_(state, state->sys->core.repr, state->mucode_decoded_buffer.srcs[0].size);
 		case DATA_DMX_IMM_BITS:
 			return 1 << ((state->decoded_inst.imm_words[0] >> 8) & 0x7);
 		case DATA_DMX_P0_BITS:
@@ -290,16 +295,12 @@ write_data_ (pilot_execute_state *state, data_bus_specifier dest, uint32_t *src)
 			return;
 		case DATA_LATCH_REPR:
 			state->sys->core.repr = (*src >> 8) & 0x7;
-			state->sys->core.repr |= 0x8;
 			return;
-		case DATA_LATCH_PRODUCT_LO:
-			state->sys->core.product_low = *src & 0xffffff;
+		case DATA_LATCH_FACTOR_A:
+			state->sys->core.factor_a = *src & 0xffffff;
 			return;
-		case DATA_LATCH_PRODUCT_HI:
-			state->sys->core.product_high = *src & 0xffffff;
-			return;
-		case DATA_LATCH_FACTOR:
-			state->sys->core.factor = *src & 0xffffff;
+		case DATA_LATCH_FACTOR_B:
+			state->sys->core.factor_b = *src & 0xffffff;
 			return;
 		case DATA_REG_R0:
 		{
@@ -331,23 +332,22 @@ write_data_ (pilot_execute_state *state, data_bus_specifier dest, uint32_t *src)
 			state->mem_data = *src;
 			return;
 		case DATA_REG_IMM_0_8:
-			state->sys->core.regs[(state->decoded_inst.imm_words[0] >> 8) & 0x7] = *src;
+			state->sys->core.regs[(state->decoded_inst.imm_words[0] >> 8) & 0x7] = *src & 0xffffff;
 			return;
 		case DATA_REG_IMM_1_8:
-			state->sys->core.regs[(state->decoded_inst.imm_words[1] >> 8) & 0x7] = *src;
+			state->sys->core.regs[(state->decoded_inst.imm_words[1] >> 8) & 0x7] = *src & 0xffffff;
 			return;
 		case DATA_REG_IMM_1_2:
-			state->sys->core.regs[(state->decoded_inst.imm_words[1] >> 2) & 0x7] = *src;
+			state->sys->core.regs[(state->decoded_inst.imm_words[1] >> 2) & 0x7] = *src & 0xffffff;
 			return;
 		case DATA_REG_RM_1_8:
-			state->sys->core.regs[(state->decoded_inst.imm_words[state->decoded_inst.rm2_offset] >> 8) & 0x7] = *src;
+			state->sys->core.regs[(state->decoded_inst.imm_words[state->decoded_inst.rm2_offset] >> 8) & 0x7] = *src & 0xffffff;
 			return;
 		case DATA_REG_RM_1_2:
-			state->sys->core.regs[(state->decoded_inst.imm_words[state->decoded_inst.rm2_offset] >> 2) & 0x7] = *src;
+			state->sys->core.regs[(state->decoded_inst.imm_words[state->decoded_inst.rm2_offset] >> 2) & 0x7] = *src & 0xffffff;
 			return;
 		case DATA_REG_REPR:
-			if (*src == 0) state->sys->core.repr &= 0x7;
-			state->sys->core.regs[state->sys->core.repr & 0x7] = *src;
+			state->sys->core.regs[state->sys->core.repr] = *src;
 			return;
 		case DATA_REG_IMM_2_8:
 		case DATA_REG_RM_2_8:
@@ -632,6 +632,10 @@ alu_modify_flags_ (pilot_execute_state *state, uint8_t flags, uint32_t operands[
 			flag_source_word |= (alu_zero) ? F_ZERO : 0;
 			state->used_z = alu_zero;
 			break;
+		case FLAG_Z_ACCUM:
+			flag_source_word |= ((flags & F_ZERO) != 0 && alu_zero) ? F_ZERO : 0;
+			state->used_z = (flags & F_ZERO) != 0 && alu_zero;
+			break;
 		case FLAG_Z_BIT_TEST:
 			flag_source_word |= ((operands[0] & operands[1]) == 0) ? F_ZERO : 0;
 			state->used_z = ((operands[0] & operands[1]) == 0);
@@ -643,6 +647,19 @@ alu_modify_flags_ (pilot_execute_state *state, uint8_t flags, uint32_t operands[
 		default:
 			execute_unreachable_();
 	}
+	
+	if (state->control->temp_z_as_extend)
+	{
+		if (state->control->operation == ALU_ADD)
+		{
+			state->sys->core.temp_z = alu_carry;
+		}
+		else
+		{
+			state->sys->core.temp_z = (state->alu_shifter_carry_bit != 0);
+		}
+	}
+	
 	// V - Overflow/parity flag
 	switch (state->control->flag_v_mode)
 	{
@@ -688,37 +705,15 @@ execute_half2_result_latch_ (pilot_execute_state *state)
 	uint8_t flags = fetch_data_(state, DATA_REG_F);
 	bool carry_flag_status = !(state->control->temp_z_as_extend) ? ((flags & F_EXTEND) != 0) : state->sys->core.temp_z;
 	
-	for (i = 0; i < 2; i++)
-	{
-		alu_src_control *src = &state->control->srcs[i];
-		operands[i] = state->alu_input_latches[i];
-		if (src->size == SIZE_8_BIT)
-		{
-			operands[i] &= 0xff;
-			if (src->sign_extend && (operands[i] & 0x80))
-			{
-				operands[i] |= 0xffffff00;
-			}
-		}
-		else if (src->size == SIZE_16_BIT)
-		{
-			operands[i] &= 0xffff;
-			if (src->sign_extend && (operands[i] & 0x8000))
-			{
-				operands[i] |= 0xffff0000;
-			}
-		}
-		else
-		{
-			operands[i] &= 0xffffff;
-		}
-	}
+	operands[0] = state->alu_input_latches[0];
+	operands[1] = state->alu_input_latches[1];
 	
 	if (state->control->src2_add1)
 	{
 		operands[1] += 1;
 	}
-	else if (state->control->src2_add_carry)
+	
+	if (state->control->src2_add_carry)
 	{
 		operands[1] += carry_flag_status;
 	}
@@ -740,9 +735,43 @@ execute_half2_result_latch_ (pilot_execute_state *state)
 		}
 	}
 	
+	if (state->control->src2_and_with_overflow && (flags & F_OVERFLOW) == 0)
+	{
+		operands[1] = 0;
+	}
+	
+	for (i = 0; i < 2; i++)
+	{
+		alu_src_control *src = &state->control->srcs[i];
+		if (src->size == SIZE_8_BIT)
+		{
+			operands[i] &= 0xff;
+			if (src->sign_extend && (operands[i] & 0x80))
+			{
+				operands[i] |= 0xffffff00;
+			}
+		}
+		else if (src->size == SIZE_16_BIT)
+		{
+			operands[i] &= 0xffff;
+			if (src->sign_extend && (operands[i] & 0x8000))
+			{
+				operands[i] |= 0xffff0000;
+			}
+		}
+		else
+		{
+			operands[i] &= 0xffffff;
+			if (src->sign_extend && (operands[i] & 0x800000))
+			{
+				operands[i] |= 0xff000000;
+			}
+		}
+	}
+	
 	state->alu_shifter_carry_bit = FALSE;
 	operands[1] = alu_operate_shifter_(state, operands[1]);
-
+	
 	switch (state->control->operation)
 	{
 		case ALU_OFF:
@@ -980,6 +1009,39 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 		}
 	}
 	
+	if (state->sequencer_phase == EXEC_SEQ_REPEAT_OP_BRANCH)
+	{
+		if (state->used_z)
+		{
+			state->repeat_type.entry_idx = MU_NONE;
+			state->sequencer_phase = EXEC_SEQ_FINAL_STEPS;
+		}
+		else if (state->repeat_type.entry_idx != MU_REPI)
+		{
+			state->sequencer_phase = EXEC_SEQ_REPEAT_OP;
+			state->repeat_type.reg_select &= 0x8;
+			state->mucode_control = state->repeat_type;
+		}
+		else
+		{
+			state->sequencer_phase = EXEC_SEQ_WAIT_CACHED_INS;
+		}
+	}
+	
+	if (state->sequencer_phase == EXEC_SEQ_REPEAT_REG_OP_BRANCH)
+	{
+		if (state->used_z || (fetch_data_(state, DATA_REG_F) & F_ZERO))
+		{
+			state->repeat_type.entry_idx = MU_NONE;
+			state->decoded_inst.repeat_op.entry_idx = MU_NONE;
+			state->sequencer_phase = EXEC_SEQ_WAIT_NEXT_INS;
+		}
+		else
+		{
+			state->sequencer_phase = EXEC_SEQ_WAIT_CACHED_INS;
+		}
+	}
+	
 	if (state->sequencer_phase == EXEC_SEQ_FINAL_STEPS)
 	{
 		if (state->decoded_inst.branch)
@@ -988,19 +1050,26 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 		}
 		else if (state->decoded_inst.repeat_op.entry_idx != MU_NONE)
 		{
-			state->sequencer_phase = EXEC_SEQ_WAIT_NEXT_INS;
-			
 			if (state->decoded_inst.repeat_op.entry_idx == MU_REPR)
 			{
 				state->repeat_reg_type = state->decoded_inst.repeat_op;
+				state->sequencer_phase = EXEC_SEQ_WAIT_CACHED_INS;
+			}
+			else if (state->decoded_inst.repeat_op.entry_idx == MU_REPI)
+			{
+				state->repeat_type = state->decoded_inst.repeat_op;
+				state->sequencer_phase = EXEC_SEQ_WAIT_NEXT_INS;
 			}
 			else
 			{
 				state->repeat_type = state->decoded_inst.repeat_op;
+				state->mucode_control = state->repeat_type;
+				state->sequencer_phase = EXEC_SEQ_REPEAT_OP;
 			}
+			
 			state->decoded_inst.repeat_op.entry_idx = MU_NONE;
 		}
-		else if (state->repeat_type.entry_idx != MU_NONE)
+		else if (state->repeat_type.entry_idx == MU_REPI)
 		{
 			state->sequencer_phase = EXEC_SEQ_REPEAT_OP;
 			state->mucode_control = state->repeat_type;
@@ -1017,7 +1086,6 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 		else if (state->decoded_inst.disable_clk)
 		{
 			state->sys->core.disable_clk = TRUE;
-			state->sequencer_phase = EXEC_SEQ_WAIT_NEXT_INS;
 		}
 		else
 		{
@@ -1031,9 +1099,16 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 		{
 			state->decoded_inst = *state->sys->interconnects.decoded_inst;
 			state->sys->interconnects.decoded_inst_semaph = FALSE;
-			state->sequencer_phase = EXEC_SEQ_EVAL_CONTROL;
 			
-			write_data_(state, DATA_REG_PGC, &state->decoded_inst.inst_pgc);
+			if (state->repeat_reg_type.entry_idx != MU_NONE)
+			{
+				state->repeat_reg_type.entry_idx = MU_NONE;
+			}
+			else
+			{
+				state->sequencer_phase = EXEC_SEQ_EVAL_CONTROL;
+				write_data_(state, DATA_REG_PGC, &state->decoded_inst.inst_pgc);
+			}
 		}
 	}
 	
@@ -1118,15 +1193,7 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 	{
 		if (!execute_sequencer_mucode_run_(state))
 		{
-			if (state->used_z)
-			{
-				state->repeat_type.entry_idx = MU_NONE;
-				state->sequencer_phase = EXEC_SEQ_FINAL_STEPS;
-			}
-			else
-			{
-				state->sequencer_phase = EXEC_SEQ_WAIT_CACHED_INS;
-			}
+			state->sequencer_phase = EXEC_SEQ_REPEAT_OP_BRANCH;
 		}
 	}
 	
@@ -1134,15 +1201,7 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 	{
 		if (!execute_sequencer_mucode_run_(state))
 		{
-			if (state->used_z || (fetch_data_(state, DATA_REG_F) & F_ZERO))
-			{
-				state->repeat_reg_type.entry_idx = MU_NONE;
-				state->sequencer_phase = EXEC_SEQ_FINAL_STEPS;
-			}
-			else
-			{
-				state->sequencer_phase = EXEC_SEQ_WAIT_CACHED_INS;
-			}
+			state->sequencer_phase = EXEC_SEQ_REPEAT_REG_OP_BRANCH;
 		}
 	}
 	

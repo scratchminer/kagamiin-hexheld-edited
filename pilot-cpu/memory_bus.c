@@ -123,8 +123,8 @@ Pilot_mem_addr_read_assert (Pilot_system *sys, bool is_16bit, uint32_t addr)
 {
 	if (sys->memctl.state == MCTL_READY)
 	{
-		if (is_16bit) printf("RD16 %06x\n", addr);
-		else printf("RD08 %06x\n", addr);
+		if (is_16bit) printf("RD16 $%06x\n", addr);
+		else printf("RD08 $%06x\n", addr);
 		
 		sys->memctl.addr_reg = addr;
 		sys->memctl.is_16bit = is_16bit;
@@ -142,8 +142,8 @@ Pilot_mem_addr_write_assert (Pilot_system *sys, bool is_16bit, uint32_t addr, ui
 {
 	if (sys->memctl.state == MCTL_READY)
 	{
-		if (is_16bit) printf("WR16 %04x -> %06x\n", data, addr);
-		else printf("WR08 %02x -> %06x\n", data & 0xff, addr);
+		if (is_16bit) printf("WR16 $%04x -> $%06x\n", data, addr);
+		else printf("WR08 $%02x -> $%06x\n", data & 0xff, addr);
 		
 		sys->memctl.addr_reg = addr;
 		sys->memctl.data_reg_out = data;

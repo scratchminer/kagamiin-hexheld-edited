@@ -82,12 +82,9 @@
  * 
  */
 
-// Placeholder
-void execute_unreachable_ ();
-
 void decode_not_implemented_ (void)
 {
-	execute_unreachable_();
+	decode_unreachable_();
 }
 
 static void
@@ -159,10 +156,12 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 		if ((opcode & 0x00ff) == 0x0000)
 		{
 			// REPR
+			work_regs->run_before.entry_idx = MU_ADJUST_PGC;
+			
 			core_op->operation = ALU_OR;
 			core_op->srcs[0].location = DATA_ZERO;
 			core_op->srcs[1].location = DATA_LATCH_IMM_0;
-			core_op->srcs[1].size = SIZE_8_BIT;
+			core_op->srcs[1].size = SIZE_16_BIT;
 			core_op->srcs[1].sign_extend = FALSE;
 			core_op->src2_add1 = FALSE;
 			core_op->src2_add_carry = FALSE;
@@ -566,7 +565,6 @@ decode_inst_arithlogic_ (pilot_decode_state *state, uint16_t opcode)
 	core_op->flag_v_mode = FLAG_V_NORMAL;
 	core_op->flag_z_mode = FLAG_Z_NORMAL;
 	
-	// Decode core_op operation
 	switch (operation)
 	{
 		case 0: case 1: case 2: case 3: case 8: case 9: case 10: case 11:
@@ -784,6 +782,7 @@ decode_inst_other_ (pilot_decode_state *state, uint16_t opcode)
 {
 	execute_control_word *core_op = &state->work_regs.core_op;
 	mucode_entry_spec *run_after = &state->work_regs.run_after;
+	mucode_entry_spec *repeat_op = &state->work_regs.repeat_op;
 	
 	data_size_spec size = ((opcode & 0xc000) >> 14);
 	
@@ -1000,13 +999,14 @@ decode_inst_other_ (pilot_decode_state *state, uint16_t opcode)
 		core_op->flag_write_mask = 0;
 		
 		decode_rm_specifier(state, rm_src, FALSE, FALSE, size);
-		core_op->dest = DATA_LATCH_FACTOR;
+		core_op->dest = DATA_LATCH_FACTOR_B;
 		
-		run_after->entry_idx = MU_MUL_LD_PRODUCT_LO;
+		run_after->entry_idx = MU_MUL_LD_FACTOR_A;
 		run_after->size = size;
 		
-		// relevant microcode isn't implemented yet
-		decode_not_implemented_();
+		repeat_op->entry_idx = MU_MUL_SHIFT_PRODUCT_LO_LEFT;
+		repeat_op->size = size;
+		repeat_op->reg_select = ((opcode >> 3) & 0x8) | ((opcode >> 2) & 0x10);
 		
 		return;
 	}
@@ -1021,7 +1021,14 @@ decode_inst_other_ (pilot_decode_state *state, uint16_t opcode)
 		core_op->flag_z_mode = FLAG_Z_SAVE;
 		
 		decode_rm_specifier(state, rm_src, FALSE, FALSE, size);
-		core_op->dest = DATA_LATCH_FACTOR;
+		core_op->dest = DATA_LATCH_FACTOR_B;
+		
+		run_after->entry_idx = MU_DIV_TEST_DIVIDEND_HI;
+		run_after->size = size;
+		
+		repeat_op->entry_idx = MU_DIV_SHIFT_DIVIDEND_LO_LEFT;
+		repeat_op->size = size;
+		repeat_op->reg_select = (opcode >> 3) & 0x8;
 		
 		state->work_regs.branch = TRUE;
 		state->work_regs.branch_cond = COND_DJNZ;
@@ -1061,6 +1068,7 @@ decode_inst_ (pilot_decode_state *state)
 	work_regs->core_op.src2_add1 = FALSE;
 	work_regs->core_op.src2_add_carry = FALSE;
 	work_regs->core_op.src2_negate = FALSE;
+	work_regs->core_op.src2_and_with_overflow = FALSE;
 	work_regs->core_op.shifter_mode = SHIFTER_NONE;
 	work_regs->core_op.flag_write_mask = 0;
 	work_regs->core_op.invert_carries = FALSE;

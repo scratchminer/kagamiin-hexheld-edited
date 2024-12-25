@@ -6,7 +6,7 @@
 typedef struct {
 	uint32_t regs[8];
 	uint16_t wf;
-
+	
 	// Program counter
 	uint32_t pgc;
 	
@@ -14,15 +14,15 @@ typedef struct {
 	uint8_t repi;
 	uint8_t repr;
 	
-	// two shift registers used for MULS / MULU / DIVS / DIVU to store the product (muliplication) and dividend (division)
-	uint32_t product_low;
-	uint32_t product_high;
+	// used for MULS / MULU / DIVS / DIVU to store the factor (A) and RM operand (B)
+	uint32_t factor_a;
+	uint32_t factor_b;
 	
-	// used for MULS / MULU / DIVS / DIVU to store the RM operand
-	uint32_t factor;
-	
-	// used for DJNZ / REPI / REPR to save the zero flag
+	// used for DJNZ / REPI / REPR to save the zero flag, and MULS / MULU / DIVS / DIVU to save the carry flag
 	bool temp_z;
+	
+	// used only for DIVS to tell whether to invert the result
+	bool temp_invert;
 	
 	// used only for HALT to disable the clock until an interrupt happens
 	bool disable_clk;

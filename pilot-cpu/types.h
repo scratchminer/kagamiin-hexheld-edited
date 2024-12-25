@@ -47,28 +47,37 @@ typedef enum
 	
 	// repetition of an implicit instruction
 	MU_REPI,
+	MU_REPI_LOOP,
 	MU_REPR,
 	
+	// used to adjust PGC for the REPR instruction (to make sure that it doesn't increment until after its completion)
+	MU_ADJUST_PGC,
+	
 	// MULS / MULU setup steps
+	MU_MUL_LD_FACTOR_A,
 	MU_MUL_LD_PRODUCT_LO,
 	MU_MUL_LD_PRODUCT_HI,
+	MU_MULDIV_LD_REPI,
 	
 	// MULS / MULU loop steps
-	MU_MUL_SHIFT_PRODUCT_LEFT,
-	MU_MUL_SHIFT_FACTOR_LEFT,
+	MU_MUL_SHIFT_PRODUCT_LO_LEFT,
+	MU_MUL_SHIFT_PRODUCT_HI_LEFT,
+	MU_MUL_SHIFT_FACTOR_B_LEFT,
 	MU_MUL_ADD_PRODUCT_LO,
 	MU_MUL_ADD_PRODUCT_HI,
-	MU_ST_PRODUCT_LO,
-	MU_ST_PRODUCT_HI,
 	
 	// DIVS / DIVU setup steps
-	MU_DIV_LD_PRODUCT_LO,
-	MU_DIV_LD_PRODUCT_HI,
+	MU_DIV_TEST_DIVIDEND_HI,
+	MU_DIV_TEST_FACTOR_B,
+	// (MU_MULDIV_LD_REPI goes after these two)
 	
 	// DIVS / DIVU loop steps (todo: sign handling?)
-	MU_DIV_SHIFT_PRODUCT_LEFT,
-	MU_DIV_SUB_FACTOR,
-	MU_DIV_ADD_PRODUCT_CARRY,
+	MU_DIV_SHIFT_DIVIDEND_LO_LEFT,
+	MU_DIV_SHIFT_DIVIDEND_HI_LEFT,
+	MU_DIV_SUB_FACTOR_B,
+	MU_DIV_ADD_DIVIDEND_LO_CARRY,
+	MU_DIV_ST_PRODUCT_LO,
+	MU_DIV_ST_PRODUCT_HI,
 	
 	// used for calls and exceptions/interrupts
 	MU_PUSH_PGC_IND_SP_AUTO,
@@ -83,7 +92,7 @@ typedef struct
 {
 	mucode_entry_idx entry_idx;
 	// bit 3: sign extend
-	// bit 4: RM operand number
+	// bit 4: RM operand number, or "first loop" flag for MULS
 	uint8_t reg_select;
 	data_size_spec size;
 	bool is_write;
@@ -97,6 +106,9 @@ typedef enum
 
 	// the current micro-operation size
 	DATA_SIZE,
+	
+	// the number of bits in the current micro-operation size (used for MULS / MULU / DIVS / DIVU initialization)
+	DATA_NUM_BITS,
 	
 	// 8-bit registers
 	DATA_REG_L0,
@@ -135,9 +147,8 @@ typedef enum
 	// Special registers
 	DATA_LATCH_REPI,
 	DATA_LATCH_REPR,
-	DATA_LATCH_PRODUCT_LO,
-	DATA_LATCH_PRODUCT_HI,
-	DATA_LATCH_FACTOR,
+	DATA_LATCH_FACTOR_A,
+	DATA_LATCH_FACTOR_B,
 	DATA_LATCH_MEM_ADDR,
 	DATA_LATCH_MEM_DATA,
 	DATA_LATCH_IMM_0,
@@ -196,10 +207,11 @@ typedef struct
 		ALU_XOR
 	} operation;
 	
-	// Source transformations (in order)
+	// Source transformations (in order, performed before sign extension)
 	bool src2_add1;
 	bool src2_add_carry;
 	bool src2_negate;
+	bool src2_and_with_overflow;
 	
 	// Shifter control
 	enum
@@ -215,16 +227,18 @@ typedef struct
 		SHIFTER_SWAP
 	} shifter_mode;
 	
+	// this uses the temp_z latch instead of the X flag
+	bool temp_z_as_extend;
+	
 	// Flag control
 	uint8_t flag_write_mask;
 	bool invert_carries;
 	
-	// this uses the temp_z latch instead of the X flag
-	bool temp_z_as_extend;
-	
 	enum
 	{
 		FLAG_Z_NORMAL,
+		// this is for checking if multi-step calculations result in zero
+		FLAG_Z_ACCUM,
 		// this ANDs src2 with src1 and sets the Z flag accordingly
 		FLAG_Z_BIT_TEST,
 		// this uses the temp_z latch instead of the Z flag
