@@ -304,7 +304,7 @@ write_data_ (pilot_execute_state *state, data_bus_specifier dest, uint32_t *src)
 			return;
 		case DATA_REG_R0:
 		{
-			switch (state->mucode_decoded_buffer.srcs[0].size)
+			switch (state->control->srcs[0].size)
 			{
 				case SIZE_8_BIT:
 					state->sys->core.regs[0] &= 0xffff00;
@@ -326,14 +326,31 @@ write_data_ (pilot_execute_state *state, data_bus_specifier dest, uint32_t *src)
 			state->sys->core.pgc = *src & 0xfffffe;
 			return;
 		case DATA_LATCH_MEM_ADDR:
-			state->mem_addr = *src;
+			state->mem_addr = *src & 0xffffff;
 			return;
 		case DATA_LATCH_MEM_DATA:
-			state->mem_data = *src;
+			state->mem_data = *src & 0xffffff;
 			return;
 		case DATA_REG_IMM_0_8:
-			state->sys->core.regs[(state->decoded_inst.imm_words[0] >> 8) & 0x7] = *src & 0xffffff;
-			return;
+		{
+			switch (state->control->srcs[0].size)
+			{
+				case SIZE_8_BIT:
+					state->sys->core.regs[(state->decoded_inst.imm_words[0] >> 8) & 0x7] &= 0xffff00;
+					state->sys->core.regs[(state->decoded_inst.imm_words[0] >> 8) & 0x7] |= *src & 0xff;
+					return;
+				case SIZE_16_BIT:
+					state->sys->core.regs[(state->decoded_inst.imm_words[0] >> 8) & 0x7] &= 0xff0000;
+					state->sys->core.regs[(state->decoded_inst.imm_words[0] >> 8) & 0x7] |= *src & 0xffff;
+					return;
+				case SIZE_24_BIT:
+					state->sys->core.regs[(state->decoded_inst.imm_words[0] >> 8) & 0x7] = *src & 0xffffff;
+					return;
+				default:
+					execute_unreachable_();
+					return;
+			}
+		}
 		case DATA_REG_IMM_1_8:
 			state->sys->core.regs[(state->decoded_inst.imm_words[1] >> 8) & 0x7] = *src & 0xffffff;
 			return;
@@ -721,15 +738,15 @@ execute_half2_result_latch_ (pilot_execute_state *state)
 	if (state->control->src2_negate)
 	{
 		operands[1] = ~operands[1] + 1;
-		if (src2->size == SIZE_8_BIT && !src2->sign_extend)
+		if (src2->size == SIZE_8_BIT)
 		{
 			operands[1] &= 0xff;
 		}
-		else if (src2->size == SIZE_16_BIT && !src2->sign_extend)
+		else if (src2->size == SIZE_16_BIT)
 		{
 			operands[1] &= 0xffff;
 		}
-		else if (!src2->sign_extend)
+		else
 		{
 			operands[1] &= 0xffffff;
 		}
