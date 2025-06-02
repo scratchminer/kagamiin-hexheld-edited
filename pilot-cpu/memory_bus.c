@@ -9,7 +9,7 @@
 #define CART_ROM_END	0xffdfff
 #define TMRAM_END	0xffefff
 #define OAM_END		0xfff27f
-#define LCDIO_END	0xfff300
+#define LCDIO_END	0xfff2ff
 #define HCIO_END	0xfff3ff
 #define HRAM_START	0xfff400
 #define HRAM_END	0xffffff
@@ -26,9 +26,13 @@ mem_read (Pilot_system *sys)
 	{
 		// try to read VRAM
 	}
+	else if (addr <= CART_CS1_END)
+	{
+		// call cartridge CS1 mapper
+	}
 	else if (addr <= CART_CS2_END)
 	{
-		// call cartridge chip select mapper
+		// call cartridge CS2 mapper
 	}
 	else if (addr <= CART_ROM_END)
 	{
