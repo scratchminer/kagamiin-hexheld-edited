@@ -10,6 +10,10 @@ typedef struct
 	uint32_t fetch_addr;
 	uint16_t fetch_word;
 	
+	bool decode_branch;
+	uint32_t decode_branch_addr;
+	bool decode_stall;
+	
 	// Decode-execute interface
 	bool decoded_inst_semaph;
 	inst_decoded_flags *decoded_inst;

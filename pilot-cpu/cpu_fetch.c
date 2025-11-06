@@ -49,6 +49,8 @@ pilot_fetch_half1 (pilot_fetch_state *state)
 		bool *fetch_word_semaph = &state->sys->interconnects.fetch_word_semaph;
 		uint16_t *fetch_word = &state->sys->interconnects.fetch_word;
 		
+		state->sys->interconnects.decode_stall = FALSE;
+		
 		if (!(*fetch_word_semaph) && state->queue_words_full[4])
 		{
 			*fetch_word = state->queue_words[4];
@@ -77,17 +79,54 @@ pilot_fetch_half2 (pilot_fetch_state *state)
 	
 	if (state->fetch_phase == FETCH_HALF2_BRANCH)
 	{
+		bool *decode_branch = &state->sys->interconnects.decode_branch;
 		bool *execute_branch = &state->sys->interconnects.execute_branch;
 		
-		if (*execute_branch)
+		if (*decode_branch)
 		{
+			*decode_branch = FALSE;
+			state->branch_predicted = TRUE;
+			
 			state->sys->interconnects.fetch_word_semaph = FALSE;
+			
 			for (int i = 0; i < 5; i++)
 			{
 				state->queue_words_full[i] = FALSE;
 			}
 			
-			state->mem_addr = state->sys->interconnects.execute_branch_addr;
+			state->mem_addr = state->sys->interconnects.decode_branch_addr;
+		}
+		if (*execute_branch)
+		{
+			if (state->branch_predicted)
+			{
+				state->branch_predicted = FALSE;
+				
+				if (state->sys->interconnects.decode_branch_addr != state->sys->interconnects.execute_branch_addr)
+				{
+					state->sys->interconnects.decode_stall = TRUE;
+					state->sys->interconnects.fetch_word_semaph = FALSE;
+					
+					for (int i = 0; i < 5; i++)
+					{
+						state->queue_words_full[i] = FALSE;
+					}
+					
+					state->mem_addr = state->sys->interconnects.execute_branch_addr;
+				}
+			}
+			else
+			{
+				state->sys->interconnects.fetch_word_semaph = FALSE;
+				
+				for (int i = 0; i < 5; i++)
+				{
+					state->queue_words_full[i] = FALSE;
+				}
+				
+				state->mem_addr = state->sys->interconnects.execute_branch_addr;
+			}
+			
 			state->sys->interconnects.fetch_addr = state->sys->interconnects.execute_branch_addr;
 			*execute_branch = FALSE;
 		}

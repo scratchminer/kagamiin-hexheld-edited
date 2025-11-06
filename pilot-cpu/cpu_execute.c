@@ -1145,9 +1145,10 @@ execute_half2_advance_sequencer_ (pilot_execute_state *state)
 		}
 		else if (state->decoded_inst.restart)
 		{
-			state->sequencer_phase = EXEC_SEQ_WAIT_NEXT_INS;
+			state->mucode_control.entry_idx = MU_PUSH_PGC_IND_SP_AUTO;
+			state->sequencer_phase = EXEC_SEQ_PUSH_PGC;
 			
-			uint32_t branch_addr = 0xffd000 | (fetch_data_(state, (alu_src_control){DATA_LATCH_IMM_0, SIZE_24_BIT, FALSE}) << 4);
+			uint32_t branch_addr = 0xffd000 | (fetch_data_(state, (alu_src_control){DATA_LATCH_IMM_0, SIZE_8_BIT, FALSE}) << 4);
 			write_data_(state, (alu_src_control){DATA_REG_PGC, SIZE_24_BIT, FALSE}, &branch_addr);
 		}
 		else if (state->decoded_inst.run_before.entry_idx != MU_NONE)

@@ -120,6 +120,9 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 		
 		core_op->operation = ALU_OFF;
 		
+		state->sys->interconnects.decode_branch = TRUE;
+		state->sys->interconnects.decode_branch_addr = 0xffd000 | ((opcode & 0x00ff) << 4);
+		
 		work_regs->restart = TRUE;
 		
 		return;
@@ -206,6 +209,9 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 			
 			run_after->entry_idx = MU_IND_DJNZ;
 			
+			state->sys->interconnects.decode_branch = TRUE;
+			state->sys->interconnects.decode_branch_addr = state->pgc + (0xfffffe00 | ((opcode & 0x00ff) * 2));
+			
 			return;
 		}
 		else
@@ -243,6 +249,9 @@ decode_inst_branch_ (pilot_decode_state *state, uint16_t opcode)
 		
 		run_after->entry_idx = MU_BR_MAR_COND;
 		run_after->reg_select = (opcode >> 8) & 0xf;
+		
+		state->sys->interconnects.decode_branch = TRUE;
+		state->sys->interconnects.decode_branch_addr = state->pgc + (0xffffff00 | ((opcode & 0x00ff) * 2));
 		
 		return;
 	}
@@ -1163,6 +1172,12 @@ pilot_decode_half1 (pilot_decode_state *state)
 		return;
 	}
 	
+	if (state->sys->interconnects.decode_stall)
+	{
+		state->sys->interconnects.decoded_inst_semaph = FALSE;
+		state->decoding_phase = DECODER_HALF1_READY;
+	}
+	
 	if (state->decoding_phase == DECODER_HALF1_DISPATCH_WAIT)
 	{
 		if (!state->sys->interconnects.decoded_inst_semaph)
@@ -1180,7 +1195,7 @@ pilot_decode_half1 (pilot_decode_state *state)
 	
 	if (state->decoding_phase == DECODER_HALF1_READ_INST_WORD)
 	{
-		state->work_regs.inst_pgc = state->sys->interconnects.fetch_addr;
+		state->pgc = state->sys->interconnects.fetch_addr;
 		
 		bool read_ok = decode_try_read_word_(state);
 		if (read_ok)
@@ -1221,7 +1236,7 @@ pilot_decode_half2 (pilot_decode_state *state)
 	{
 		if (!state->work_regs.illegal)
 		{
-			state->work_regs.inst_pgc = state->sys->interconnects.fetch_addr;
+			state->work_regs.inst_pgc = state->pgc;
 		}
 		
 		state->decoded_inst = state->work_regs;

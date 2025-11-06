@@ -12,6 +12,8 @@ typedef struct {
 	
 	uint32_t mem_addr;
 	
+	bool branch_predicted;
+	
 	bool mem_access_waiting;
 	
 	enum
