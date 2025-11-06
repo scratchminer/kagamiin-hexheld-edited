@@ -29,12 +29,16 @@ base_entry_ (mucode_entry_spec spec)
 		};
 	}
 	
+	prg.branch = FALSE;
+	prg.branch_cond = COND_ALWAYS;
+	prg.next_no_branch = prg.next;
+	
 	prg.operation.srcs[0].location = DATA_ZERO;
 	prg.operation.srcs[0].size = SIZE_24_BIT;
 	prg.operation.srcs[0].sign_extend = FALSE;
-
+	
 	prg.operation.srcs[1].location = DATA_ZERO;
-	prg.operation.srcs[1].size = spec.size;
+	prg.operation.srcs[1].size = SIZE_24_BIT;
 	prg.operation.srcs[1].sign_extend = FALSE;
 	
 	prg.operation.flag_write_mask = 0;
@@ -43,16 +47,17 @@ base_entry_ (mucode_entry_spec spec)
 	prg.operation.src2_add1 = FALSE;
 	prg.operation.src2_add_carry = FALSE;
 	prg.operation.src2_negate = FALSE;
-	prg.operation.src2_and_with_overflow = FALSE;
+	prg.operation.src2_and_with_aux = FALSE;
 	
-	prg.operation.temp_z_as_extend = FALSE;
-	
+	prg.operation.latch_aux_mode = LATCH_AUX_NONE;
 	prg.operation.flag_z_mode = FLAG_Z_NORMAL;
 	prg.operation.flag_v_mode = FLAG_V_NORMAL;
 	
 	prg.operation.operation = ALU_OFF;
 	prg.operation.shifter_mode = SHIFTER_NONE;
-	prg.operation.dest = DATA_ZERO;
+	
+	prg.operation.dest.location = DATA_ZERO;
+	prg.operation.dest.size = spec.size;
 	
 	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
 	prg.operation.is_16bit = (spec.size >= SIZE_16_BIT);
@@ -84,7 +89,7 @@ ind_1cyc_imm_rm_ (mucode_entry_spec spec)
 	prg.operation.srcs[0].sign_extend = spec.reg_select & 0x8;
 	prg.operation.srcs[0].size = spec.size;
 	prg.operation.srcs[1].size = !(spec.reg_select & 0x8) ? SIZE_24_BIT : SIZE_16_BIT;
-
+	
 	prg.operation.mem_latch_ctl = MEM_LATCH_HALF1;
 	prg.operation.mem_write_ctl = !(spec.is_write) ? MEM_READ : MEM_WRITE_FROM_MDR;
 	
@@ -136,7 +141,7 @@ ind_1cyc_reg_auto_ (mucode_entry_spec spec)
 	
 	prg.operation.operation = ALU_ADD;
 	
-	prg.operation.dest = prg.operation.srcs[0].location;
+	prg.operation.dest.location = prg.operation.srcs[0].location;
 	
 	prg.operation.mem_latch_ctl = MEM_LATCH_HALF2;
 	
@@ -153,7 +158,7 @@ ind_2cyc_withimm_ (mucode_entry_spec spec)
 	
 	prg.operation.operation = ALU_ADD;
 	
-	prg.operation.dest = DATA_ZERO;
+	prg.operation.dest.location = DATA_ZERO;
 	
 	return prg;
 }
@@ -169,7 +174,7 @@ ind_2cyc_imm_withbits_ (mucode_entry_spec spec)
 	
 	prg.operation.operation = ALU_ADD;
 	
-	prg.operation.dest = DATA_LATCH_MEM_ADDR;
+	prg.operation.dest.location = DATA_LATCH_MEM_ADDR;
 	
 	prg.operation.mem_latch_ctl = MEM_LATCH_HALF2;
 	
@@ -187,7 +192,7 @@ ind_2cyc_reg_withbits_ (mucode_entry_spec spec)
 	
 	prg.operation.operation = ALU_ADD;
 	
-	prg.operation.dest = DATA_LATCH_MEM_ADDR;
+	prg.operation.dest.location = DATA_LATCH_MEM_ADDR;
 	
 	prg.operation.mem_latch_ctl = MEM_LATCH_HALF2;
 	
@@ -206,30 +211,9 @@ ind_2cyc_pgc_withimm_ (mucode_entry_spec spec)
 	
 	prg.operation.operation = ALU_ADD;
 	
-	prg.operation.dest = DATA_LATCH_MEM_ADDR;
+	prg.operation.dest.location = DATA_LATCH_MEM_ADDR;
 	
 	prg.operation.mem_latch_ctl = MEM_LATCH_HALF2;
-	
-	return prg;
-}
-
-static mucode_entry
-ind_2cyc_pgc_withimm_shift_ (mucode_entry_spec spec)
-{
-	mucode_entry prg = base_entry_(spec);
-	prg.operation.srcs[0].location = DATA_REG_PGC;
-	
-	prg.operation.srcs[1].location = DATA_LATCH_IMM_0;
-	prg.operation.srcs[1].size = SIZE_8_BIT;
-	prg.operation.srcs[1].sign_extend = TRUE;
-	
-	prg.operation.operation = ALU_ADD;
-	prg.operation.shifter_mode = SHIFTER_LEFT;
-	
-	prg.operation.dest = DATA_ZERO;
-	
-	prg.operation.mem_latch_ctl = MEM_LATCH_HALF2;
-	prg.operation.mem_access_suppress = TRUE;
 	
 	return prg;
 }
@@ -246,7 +230,7 @@ ind_2cyc_pgc_withimm_rm_ (mucode_entry_spec spec)
 	
 	prg.operation.operation = ALU_ADD;
 	
-	prg.operation.dest = DATA_LATCH_MEM_ADDR;
+	prg.operation.dest.location = DATA_LATCH_MEM_ADDR;
 	
 	prg.operation.mem_latch_ctl = MEM_LATCH_HALF2;
 	
@@ -254,39 +238,26 @@ ind_2cyc_pgc_withimm_rm_ (mucode_entry_spec spec)
 }
 
 static mucode_entry
-ind_2cyc_pgc_withhml_ (mucode_entry_spec spec)
+ind_1cyc_djnz_ (mucode_entry_spec spec)
 {
 	mucode_entry prg = base_entry_(spec);
 	prg.operation.srcs[0].location = DATA_REG_PGC;
 	
-	prg.operation.srcs[1].location = DATA_LATCH_IMM_HML;
-	prg.operation.srcs[1].size = SIZE_24_BIT;
-	prg.operation.srcs[1].sign_extend = FALSE;
+	prg.operation.srcs[1].location = DATA_LATCH_IMM_0;
+	prg.operation.srcs[1].size = SIZE_8_BIT;
+	prg.operation.srcs[1].sign_extend = TRUE;
+	prg.operation.shifter_mode = SHIFTER_LEFT;
 	
 	prg.operation.operation = ALU_ADD;
 	
-	prg.operation.dest = DATA_LATCH_MEM_ADDR;
+	prg.operation.dest.location = DATA_LATCH_MEM_ADDR;
 	
-	prg.operation.mem_latch_ctl = MEM_LATCH_HALF2;
+	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
 	
-	return prg;
-}
-
-static mucode_entry
-ind_2cyc_pgc_withhml_rm_ (mucode_entry_spec spec)
-{
-	mucode_entry prg = base_entry_(spec);
-	prg.operation.srcs[0].location = DATA_REG_PGC;
-	
-	prg.operation.srcs[1].location = (!(spec.reg_select & 0x10)) ? DATA_LATCH_IMM_HML_RM : DATA_LATCH_RM_HML;
-	prg.operation.srcs[1].size = SIZE_24_BIT;
-	prg.operation.srcs[1].sign_extend = FALSE;
-	
-	prg.operation.operation = ALU_ADD;
-	
-	prg.operation.dest = DATA_LATCH_MEM_ADDR;
-	
-	prg.operation.mem_latch_ctl = MEM_LATCH_HALF2;
+	prg.branch = TRUE;
+	prg.branch_cond = COND_DJNZ;
+	prg.next.entry_idx = MU_BR_MAR;
+	prg.next_no_branch.entry_idx = MU_NONE;
 	
 	return prg;
 }
@@ -303,7 +274,7 @@ ind_2cyc_mar_auto_ (mucode_entry_spec spec)
 	
 	prg.operation.operation = ALU_ADD;
 	
-	prg.operation.dest = DATA_ZERO;
+	prg.operation.dest.location = DATA_ZERO;
 	
 	prg.operation.mem_latch_ctl = MEM_LATCH_HALF2;
 	prg.operation.mem_write_ctl = !(spec.is_write) ? MEM_READ : MEM_WRITE_FROM_MDR_HIGH;
@@ -334,7 +305,7 @@ after_autoidx_ (mucode_entry_spec spec)
 	
 	prg.operation.operation = ALU_ADD;
 	
-	prg.operation.dest = prg.operation.srcs[0].location;
+	prg.operation.dest.location = prg.operation.srcs[0].location;
 	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
 	
 	prg.next.entry_idx = MU_NONE;
@@ -357,9 +328,9 @@ repi_ (mucode_entry_spec spec)
 	prg.operation.src2_add1 = TRUE;
 	prg.operation.src2_negate = TRUE;
 	
-	prg.operation.flag_z_mode = FLAG_Z_SAVE;
+	prg.operation.latch_aux_mode = LATCH_AUX_ZERO;
 	
-	prg.operation.dest = DATA_LATCH_REPI;
+	prg.operation.dest.location = DATA_LATCH_REPI;
 	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
 	
 	prg.next.entry_idx = MU_NONE;
@@ -382,7 +353,7 @@ repr_ (mucode_entry_spec spec)
 	prg.operation.src2_add1 = TRUE;
 	prg.operation.src2_negate = TRUE;
 	
-	prg.operation.dest = DATA_REG_REPR;
+	prg.operation.dest.location = DATA_REG_REPR;
 	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
 	
 	prg.next.entry_idx = MU_NONE;
@@ -404,7 +375,7 @@ adjust_pgc_ (mucode_entry_spec spec)
 	prg.operation.operation = ALU_ADD;
 	prg.operation.src2_negate = TRUE;
 	
-	prg.operation.dest = DATA_REG_PGC;
+	prg.operation.dest.location = DATA_REG_PGC;
 	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
 	
 	prg.next.entry_idx = MU_NONE;
@@ -422,7 +393,7 @@ mul_1cyc_ld_factor_a_(mucode_entry_spec spec)
 	prg.operation.srcs[1].location = DATA_ZERO;
 	prg.operation.operation = ALU_OR;
 	
-	prg.operation.dest = DATA_LATCH_FACTOR_A;
+	prg.operation.dest.location = DATA_LATCH_FACTOR_A;
 	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
 	
 	prg.next.entry_idx = MU_MUL_LD_PRODUCT_LO;
@@ -441,7 +412,7 @@ mul_2cyc_ld_product_lo_(mucode_entry_spec spec)
 	prg.operation.srcs[1].location = DATA_ZERO;
 	prg.operation.operation = ALU_OR;
 	
-	prg.operation.dest = DATA_REG_IMM_0_8;
+	prg.operation.dest.location = DATA_REG_IMM_0_8;
 	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
 	
 	prg.next.entry_idx = MU_MUL_LD_PRODUCT_HI;
@@ -460,30 +431,31 @@ mul_3cyc_ld_product_hi_(mucode_entry_spec spec)
 	prg.operation.srcs[1].location = DATA_ZERO;
 	prg.operation.operation = ALU_OR;
 	
-	prg.operation.dest = DATA_REG_R0;
+	prg.operation.dest.location = DATA_REG_R0;
 	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
 	
-	prg.next.entry_idx = MU_MULDIV_LD_REPI;
+	prg.next.entry_idx = MU_MUL_LD_REPI;
 	prg.next.size = spec.size;
 	
 	return prg;
 }
 
 static mucode_entry
-muldiv_34cyc_ld_repi_(mucode_entry_spec spec)
+mul_4cyc_ld_repi_(mucode_entry_spec spec)
 {
 	mucode_entry prg = base_entry_(spec);
 	
-	prg.operation.srcs[0].size = SIZE_8_BIT;
+	prg.operation.srcs[0].size = spec.size;
 	prg.operation.srcs[0].location = DATA_NUM_BITS;
-	prg.operation.srcs[1].size = spec.size;
 	prg.operation.srcs[1].location = DATA_ZERO;
 	prg.operation.operation = ALU_OR;
 	
-	prg.operation.dest = DATA_LATCH_REPI;
+	prg.operation.dest.size = SIZE_8_BIT;
+	prg.operation.dest.location = DATA_LATCH_REPI;
+	
 	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
 	
-	prg.next.entry_idx = MU_NONE;
+	prg.next.entry_idx = MU_MUL_SHIFT_PRODUCT_LO_LEFT;
 	
 	return prg;
 }
@@ -495,14 +467,17 @@ mul_ncyc_shift_product_lo_left_ (mucode_entry_spec spec)
 	
 	prg.operation.srcs[0].size = spec.size;
 	prg.operation.srcs[0].location = DATA_ZERO;
+	prg.operation.srcs[1].size = spec.size;
 	prg.operation.srcs[1].location = DATA_REG_IMM_0_8;
 	prg.operation.operation = ALU_OR;
 	
-	prg.operation.dest = DATA_REG_IMM_0_8;
+	prg.operation.dest.size = spec.size;
+	prg.operation.dest.location = DATA_REG_IMM_0_8;
+	
 	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
 	
 	prg.operation.shifter_mode = SHIFTER_LEFT;
-	prg.operation.temp_z_as_extend = TRUE;
+	prg.operation.latch_aux_mode = LATCH_AUX_CARRY;
 	
 	prg.next.entry_idx = MU_MUL_SHIFT_PRODUCT_HI_LEFT;
 	prg.next.size = spec.size;
@@ -517,14 +492,17 @@ mul_n1cyc_shift_product_hi_left_ (mucode_entry_spec spec)
 	
 	prg.operation.srcs[0].size = spec.size;
 	prg.operation.srcs[0].location = DATA_ZERO;
+	prg.operation.srcs[1].size = spec.size;
 	prg.operation.srcs[1].location = DATA_REG_R0;
 	prg.operation.operation = ALU_OR;
 	
-	prg.operation.dest = DATA_REG_R0;
+	prg.operation.dest.size = spec.size;
+	prg.operation.dest.location = DATA_REG_R0;
+	
 	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
 	
 	prg.operation.shifter_mode = SHIFTER_LEFT_CARRY;
-	prg.operation.temp_z_as_extend = TRUE;
+	prg.operation.latch_aux_mode = LATCH_AUX_CARRY;
 	
 	prg.next.entry_idx = MU_MUL_SHIFT_FACTOR_B_LEFT;
 	prg.next.size = spec.size;
@@ -539,17 +517,17 @@ mul_n2cyc_shift_factor_b_left_ (mucode_entry_spec spec)
 	
 	prg.operation.srcs[0].size = spec.size;
 	prg.operation.srcs[0].location = DATA_ZERO;
+	prg.operation.srcs[1].size = spec.size;
 	prg.operation.srcs[1].location = DATA_LATCH_FACTOR_B;
 	prg.operation.operation = ALU_OR;
 	
-	prg.operation.dest = DATA_LATCH_FACTOR_B;
+	prg.operation.dest.size = spec.size;
+	prg.operation.dest.location = DATA_LATCH_FACTOR_B;
+	
 	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
 	
-	prg.operation.shifter_mode = SHIFTER_LEFT_CARRY;
-	prg.operation.flag_v_mode = FLAG_V_SHIFTER_CARRY;
-	prg.operation.temp_z_as_extend = TRUE;
-	
-	prg.operation.flag_write_mask = F_OVERFLOW;
+	prg.operation.shifter_mode = SHIFTER_LEFT;
+	prg.operation.latch_aux_mode = LATCH_AUX_CARRY;
 	
 	prg.next.entry_idx = MU_MUL_ADD_PRODUCT_LO;
 	prg.next.size = spec.size;
@@ -568,16 +546,15 @@ mul_n3cyc_add_product_lo_ (mucode_entry_spec spec)
 	prg.operation.srcs[1].sign_extend = (spec.reg_select & 0x8) != 0;
 	prg.operation.operation = ALU_ADD;
 	
-	prg.operation.dest = DATA_REG_IMM_0_8;
+	prg.operation.dest.location = DATA_REG_IMM_0_8;
 	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
 	
 	prg.operation.shifter_mode = SHIFTER_NONE;
 	prg.operation.src2_negate = (spec.reg_select & 0x10) != 0;
-	prg.operation.src2_and_with_overflow = TRUE;
-	prg.operation.temp_z_as_extend = TRUE;
-	prg.operation.invert_carries = (spec.reg_select & 0x10) != 0;
+	prg.operation.src2_and_with_aux = TRUE;
 	
-	prg.operation.flag_write_mask = F_ZERO;
+	prg.operation.invert_carries = (spec.reg_select & 0x10) != 0;
+	prg.operation.flag_write_mask = F_ZERO | F_CARRY;
 	
 	prg.next.entry_idx = MU_MUL_ADD_PRODUCT_HI;
 	prg.next.size = spec.size;
@@ -592,24 +569,62 @@ mul_n4cyc_add_product_hi_ (mucode_entry_spec spec)
 	
 	prg.operation.srcs[0].size = spec.size;
 	prg.operation.srcs[0].location = DATA_REG_R0;
-	prg.operation.srcs[1].location = DATA_ZERO;
+	prg.operation.srcs[1].location = DATA_LATCH_CARRY;
 	prg.operation.srcs[1].sign_extend = (spec.reg_select & 0x8) != 0;
 	prg.operation.operation = ALU_ADD;
 	
-	prg.operation.dest = DATA_REG_R0;
+	prg.operation.dest.size = spec.size;
+	prg.operation.dest.location = DATA_REG_R0;
 	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
 	
 	prg.operation.shifter_mode = SHIFTER_NONE;
-	prg.operation.src2_add_carry = TRUE;
-	prg.operation.src2_and_with_overflow = TRUE;
-	prg.operation.src2_negate = (spec.reg_select & 0x10) != 0;
-	prg.operation.temp_z_as_extend = TRUE;
+	prg.operation.src2_add1 = (spec.reg_select & 0x8) != 0;
+	prg.operation.src2_negate = (spec.reg_select & 0x10) == 0;
+	prg.operation.src2_and_with_aux = TRUE;
+	
+	prg.operation.invert_carries = (spec.reg_select & 0x10) != 0;
 	prg.operation.flag_z_mode = FLAG_Z_ACCUM;
 	prg.operation.flag_v_mode = FLAG_V_CLEAR;
+	prg.operation.latch_aux_mode = LATCH_AUX_CLEAR;
 	
 	prg.operation.flag_write_mask = F_OVERFLOW | F_SIGN | F_CARRY | F_ZERO;
 	
-	prg.next.entry_idx = MU_REPI_LOOP;
+	prg.next.entry_idx = MU_MUL_LOOP;
+	prg.next.size = spec.size;
+	
+	return prg;
+}
+
+static mucode_entry
+mul_n5cyc_loop_ (mucode_entry_spec spec)
+{
+	mucode_entry prg = base_entry_(spec);
+	prg.operation.srcs[0].location = DATA_LATCH_REPI;
+	prg.operation.srcs[0].size = SIZE_8_BIT;
+	
+	prg.operation.srcs[1].location = DATA_ZERO;
+	prg.operation.srcs[1].size = SIZE_8_BIT;
+	prg.operation.srcs[1].sign_extend = TRUE;
+	
+	prg.operation.operation = ALU_ADD;
+	prg.operation.src2_add1 = TRUE;
+	prg.operation.src2_negate = TRUE;
+	
+	prg.operation.dest.size = SIZE_8_BIT;
+	prg.operation.dest.location = DATA_LATCH_REPI;
+	
+	prg.operation.latch_aux_mode = LATCH_AUX_ZERO;
+	
+	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
+	
+	prg.branch = TRUE;
+	prg.branch_cond = COND_DJNZ;
+	
+	prg.next.entry_idx = MU_MUL_SHIFT_PRODUCT_LO_LEFT;
+	prg.next.reg_select = spec.reg_select & 0xf;
+	prg.next.size = spec.size;
+	
+	prg.next_no_branch.entry_idx = MU_NONE;
 	
 	return prg;
 }
@@ -684,6 +699,89 @@ push_wf_2cyc_wr_wf_(mucode_entry_spec spec)
 	return prg;
 }
 
+static mucode_entry
+br_mar_cond_(mucode_entry_spec spec)
+{
+	mucode_entry prg = base_entry_(spec);
+	
+	prg.operation.dest.size = SIZE_24_BIT;
+	prg.operation.operation = ALU_OFF;
+	
+	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
+	
+	prg.branch = TRUE;
+	prg.branch_cond = spec.reg_select & 0xf;
+	prg.next.entry_idx = MU_BR_MAR;
+	prg.next_no_branch.entry_idx = MU_NONE;
+	
+	return prg;
+}
+
+static mucode_entry
+br_mar_(mucode_entry_spec spec)
+{
+	mucode_entry prg = base_entry_(spec);
+	
+	prg.operation.srcs[0].size = SIZE_24_BIT;
+	prg.operation.srcs[0].location = DATA_LATCH_MEM_ADDR;
+	prg.operation.srcs[1].size = SIZE_24_BIT;
+	prg.operation.srcs[1].location = DATA_ZERO;
+	prg.operation.dest.location = DATA_REG_PGC;
+	prg.operation.dest.size = SIZE_24_BIT;
+	prg.operation.operation = ALU_OR;
+	
+	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
+	
+	return prg;
+}
+
+static mucode_entry
+br_hml_1cyc_test_hml_(mucode_entry_spec spec)
+{
+	mucode_entry prg = base_entry_(spec);
+	
+	prg.operation.srcs[0].size = SIZE_24_BIT;
+	prg.operation.srcs[0].location = DATA_LATCH_MEM_ADDR;
+	prg.operation.srcs[1].size = SIZE_24_BIT;
+	prg.operation.srcs[1].location = DATA_ZERO;
+	prg.operation.src2_add1 = TRUE;
+	
+	prg.operation.dest.location = DATA_ZERO;
+	prg.operation.operation = ALU_OR;
+	
+	prg.operation.flag_z_mode = FLAG_Z_BIT_TEST;
+	prg.operation.latch_aux_mode = LATCH_AUX_ZERO;
+	
+	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
+	
+	prg.branch = TRUE;
+	prg.branch_cond = COND_DJNZ;
+	prg.next.entry_idx = MU_BR_HML_ADD_PGC;
+	prg.next_no_branch.entry_idx = MU_BR_MAR;
+	
+	return prg;
+}
+
+static mucode_entry
+br_hml_2cyc_add_pgc_(mucode_entry_spec spec)
+{
+	mucode_entry prg = base_entry_(spec);
+	
+	prg.operation.srcs[0].size = SIZE_24_BIT;
+	prg.operation.srcs[0].location = DATA_REG_PGC;
+	prg.operation.srcs[1].size = SIZE_24_BIT;
+	prg.operation.srcs[1].location = DATA_LATCH_MEM_ADDR;
+	
+	prg.operation.dest.location = DATA_REG_PGC;
+	prg.operation.operation = ALU_ADD;
+	
+	prg.operation.latch_aux_mode = LATCH_AUX_CLEAR;
+	
+	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
+	
+	return prg;
+}
+
 mucode_entry
 decode_mucode_entry (mucode_entry_spec spec)
 {
@@ -712,12 +810,8 @@ decode_mucode_entry (mucode_entry_spec spec)
 			return result = ind_2cyc_pgc_withimm_(spec);
 		case MU_IND_PGC_WITH_IMM_RM:
 			return result = ind_2cyc_pgc_withimm_rm_(spec);
-		case MU_IND_PGC_WITH_IMM_SHIFT:
-			return result = ind_2cyc_pgc_withimm_shift_(spec);
-		case MU_IND_PGC_WITH_HML:
-			return result = ind_2cyc_pgc_withhml_(spec);
-		case MU_IND_PGC_WITH_HML_RM:
-			return result = ind_2cyc_pgc_withhml_rm_(spec);
+		case MU_IND_DJNZ:
+			return result = ind_1cyc_djnz_(spec);
 		case MU_IND_MAR_AUTO:
 			return result = ind_2cyc_mar_auto_(spec);
 		case MU_IND_MAR_POST_AUTO:
@@ -725,7 +819,6 @@ decode_mucode_entry (mucode_entry_spec spec)
 		case MU_POST_AUTOIDX:
 			return result = after_autoidx_(spec);
 		case MU_REPI:
-		case MU_REPI_LOOP:
 			return result = repi_(spec);
 		case MU_REPR:
 			return result = repr_(spec);
@@ -737,8 +830,8 @@ decode_mucode_entry (mucode_entry_spec spec)
 			return result = mul_2cyc_ld_product_lo_(spec);
 		case MU_MUL_LD_PRODUCT_HI:
 			return result = mul_3cyc_ld_product_hi_(spec);
-		case MU_MULDIV_LD_REPI:
-			return result = muldiv_34cyc_ld_repi_(spec);
+		case MU_MUL_LD_REPI:
+			return result = mul_4cyc_ld_repi_(spec);
 		case MU_MUL_SHIFT_PRODUCT_LO_LEFT:
 			return result = mul_ncyc_shift_product_lo_left_(spec);
 		case MU_MUL_SHIFT_PRODUCT_HI_LEFT:
@@ -749,6 +842,8 @@ decode_mucode_entry (mucode_entry_spec spec)
 			return result = mul_n3cyc_add_product_lo_(spec);
 		case MU_MUL_ADD_PRODUCT_HI:
 			return result = mul_n4cyc_add_product_hi_(spec);
+		case MU_MUL_LOOP:
+			return result = mul_n5cyc_loop_(spec);
 		
 		// DIVU / DIVS microcode would be here
 		
@@ -760,6 +855,14 @@ decode_mucode_entry (mucode_entry_spec spec)
 			return result = push_wf_1cyc_ind_sp_auto_(spec);
 		case MU_PUSH_WF_WR_WF:
 			return result = push_wf_2cyc_wr_wf_(spec);
+		case MU_BR_MAR_COND:
+			return result = br_mar_cond_(spec);
+		case MU_BR_MAR:
+			return result = br_mar_(spec);
+		case MU_BR_HML_TEST_HML:
+			return result = br_hml_1cyc_test_hml_(spec);
+		case MU_BR_HML_ADD_PGC:
+			return result = br_hml_2cyc_add_pgc_(spec);
 		default:
 			decode_unreachable_();
 			return base_entry_(spec);

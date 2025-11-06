@@ -19,10 +19,7 @@ typedef struct {
 	uint32_t factor_b;
 	
 	// used for DJNZ / REPI / REPR to save the zero flag, and MULS / MULU / DIVS / DIVU to save the carry flag
-	bool temp_z;
-	
-	// used only for DIVS to tell whether to invert the result
-	bool temp_invert;
+	bool latch_aux;
 	
 	// used only for HALT to disable the clock until an interrupt happens
 	bool disable_clk;

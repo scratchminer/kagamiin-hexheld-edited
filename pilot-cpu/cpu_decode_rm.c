@@ -54,7 +54,8 @@ decode_rm_specifier (pilot_decode_state *state, rm_spec rm, bool is_dest, bool s
 			// left source and destination are the same
 			// fetch and set up writeback
 			run_mucode = &work_regs->run_before;
-			core_op->dest = DATA_LATCH_MEM_DATA;
+			core_op->dest.location = DATA_LATCH_MEM_DATA;
+			core_op->dest.size = size;
 			core_op->mem_latch_ctl = MEM_LATCH_HALF2_MAR;
 			core_op->mem_write_ctl = MEM_WRITE_FROM_DEST;
 			core_op->is_16bit = (size >= SIZE_16_BIT);
@@ -63,13 +64,15 @@ decode_rm_specifier (pilot_decode_state *state, rm_spec rm, bool is_dest, bool s
 		{
 			// destination only, not part of core op; no fetch
 			run_mucode = &work_regs->run_after;
-			core_op->dest = DATA_LATCH_MEM_DATA;
+			core_op->dest.location = DATA_LATCH_MEM_DATA;
+			core_op->dest.size = size;
 		}
 		else
 		{
 			// source only, fetch
 			run_mucode = &work_regs->run_before;
-			core_op->dest = DATA_LATCH_MEM_DATA;
+			core_op->dest.location = DATA_LATCH_MEM_DATA;
+			core_op->dest.size = size;
 		}
 		
 		run_mucode->is_write = is_dest;
@@ -176,7 +179,11 @@ decode_rm_specifier (pilot_decode_state *state, rm_spec rm, bool is_dest, bool s
 		// Register direct
 		uint8_t reg = (rm >> 2) & 0x7;
 		src_affected->location = (size == SIZE_8_BIT) ? DATA_REG_L0 + reg : DATA_REG_P0 + reg;
-		if (is_dest) core_op->dest = (size == SIZE_8_BIT) ? DATA_REG_L0 + reg : DATA_REG_P0 + reg;
+		if (is_dest)
+		{
+			core_op->dest.location = (size == SIZE_8_BIT) ? DATA_REG_L0 + reg : DATA_REG_P0 + reg;
+			core_op->dest.size = size;
+		}
 	}
 	
 	if (rm_requires_mem_fetch_(rm) && state->rm_ops == 2)

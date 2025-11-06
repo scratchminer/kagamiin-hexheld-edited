@@ -9,10 +9,13 @@ typedef struct {
 	
 	inst_decoded_flags decoded_inst;
 	mucode_entry_spec mucode_control;
-	execute_control_word mucode_decoded_buffer;
+	mucode_entry mucode_decoded_buffer;
 	execute_control_word *control;
+	
 	mucode_entry_spec repeat_type;
-	mucode_entry_spec repeat_reg_type;
+	
+	bool branched;
+	uint32_t branch_addr;
 	
 	uint32_t alu_input_latches[2];
 	uint32_t alu_output_latch;
@@ -57,11 +60,9 @@ typedef struct {
 		EXEC_SEQ_RUN_AFTER,
 		EXEC_SEQ_REPEAT_OP,
 		EXEC_SEQ_REPEAT_OP_BRANCH,
-		EXEC_SEQ_REPEAT_REG_OP,
-		EXEC_SEQ_REPEAT_REG_OP_BRANCH,
 		EXEC_SEQ_FINAL_STEPS,
-		EXEC_SEQ_SIGNAL_INTERRUPT,
 		EXEC_SEQ_SIGNAL_BRANCH,
+		EXEC_SEQ_SIGNAL_INTERRUPT,
 		EXEC_SEQ_BRANCH_OP,
 		EXEC_SEQ_PUSH_PGC,
 		EXEC_SEQ_PUSH_WF

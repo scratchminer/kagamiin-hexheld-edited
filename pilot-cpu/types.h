@@ -34,9 +34,9 @@ typedef enum
 	MU_IND_REG_WITH_BITS,
 	MU_IND_PGC_WITH_IMM,
 	MU_IND_PGC_WITH_IMM_RM,
-	MU_IND_PGC_WITH_IMM_SHIFT,
-	MU_IND_PGC_WITH_HML,
-	MU_IND_PGC_WITH_HML_RM,
+	
+	// used only for DJNZ's weird PGC-relative addressing scheme
+	MU_IND_DJNZ,
 	
 	// used for 24-bit accesses
 	MU_IND_MAR_AUTO,
@@ -47,7 +47,6 @@ typedef enum
 	
 	// repetition of an implicit instruction
 	MU_REPI,
-	MU_REPI_LOOP,
 	MU_REPR,
 	
 	// used to adjust PGC for the REPR instruction (to make sure that it doesn't increment until after its completion)
@@ -57,7 +56,7 @@ typedef enum
 	MU_MUL_LD_FACTOR_A,
 	MU_MUL_LD_PRODUCT_LO,
 	MU_MUL_LD_PRODUCT_HI,
-	MU_MULDIV_LD_REPI,
+	MU_MUL_LD_REPI,
 	
 	// MULS / MULU loop steps
 	MU_MUL_SHIFT_PRODUCT_LO_LEFT,
@@ -65,19 +64,19 @@ typedef enum
 	MU_MUL_SHIFT_FACTOR_B_LEFT,
 	MU_MUL_ADD_PRODUCT_LO,
 	MU_MUL_ADD_PRODUCT_HI,
+	MU_MUL_LOOP,
 	
-	// DIVS / DIVU setup steps
+	// DIV setup steps, maybe?
 	MU_DIV_TEST_DIVIDEND_HI,
 	MU_DIV_TEST_FACTOR_B,
-	// (MU_MULDIV_LD_REPI goes after these two)
+	MU_DIV_LD_REPI,
 	
-	// DIVS / DIVU loop steps (todo: sign handling?)
-	MU_DIV_SHIFT_DIVIDEND_LO_LEFT,
-	MU_DIV_SHIFT_DIVIDEND_HI_LEFT,
-	MU_DIV_SUB_FACTOR_B,
-	MU_DIV_ADD_DIVIDEND_LO_CARRY,
-	MU_DIV_ST_PRODUCT_LO,
-	MU_DIV_ST_PRODUCT_HI,
+	// DIVU loop steps (todo: sign handling, somehow??)
+	MU_DIV_SHIFT_DIVIDEND_LO_LEFT,	// r = r << 1; aux = carry
+	MU_DIV_SHIFT_DIVIDEND_HI_LEFT,	// R0 = R0 << 1 | aux; VP = VP | carry
+	MU_DIV_SUB_FACTOR_B,		// R0 - factorB; aux = ~borrow
+	MU_DIV_ADD_DIVIDEND_LO_CARRY,	// r = r + aux
+	MU_DIV_ST_DIVIDEND_HI,		// R0 = R0 - (factorB && aux)
 	
 	// used for calls and exceptions/interrupts
 	MU_PUSH_PGC_IND_SP_AUTO,
@@ -85,7 +84,15 @@ typedef enum
 	
 	// used for exceptions/interrupts
 	MU_PUSH_WF_IND_SP_AUTO,
-	MU_PUSH_WF_WR_WF
+	MU_PUSH_WF_WR_WF,
+	
+	// used for basically all branch instructions
+	MU_BR_MAR_COND,		// JR.S / CR.S / JP rm24 / JEA / CALL rm24 / CEA / DJNZ (address is resolved and in MAR)
+	MU_BR_MAR,
+	MU_BR_HML_TEST_HML,	// JP hml / JR.L / CALL hml / CR.L (deferred resolution, since the specific type depends on bit 0 of HML)
+	MU_BR_HML_ADD_PGC,
+	MU_BR_DIV_ZERO,		// Divide by Zero Exception
+	MU_BR_ILLEGAL		// Illegal Instruction Exception
 } mucode_entry_idx;
 
 typedef struct
@@ -93,6 +100,8 @@ typedef struct
 	mucode_entry_idx entry_idx;
 	// bit 3: sign extend
 	// bit 4: RM operand number, or "first loop" flag for MULS
+	// in branch instructions, bits 0-4 are used as the branch condition
+	
 	uint8_t reg_select;
 	data_size_spec size;
 	bool is_write;
@@ -103,11 +112,14 @@ typedef enum
 {
 	// zero, or n/a
 	DATA_ZERO = 0,
-
-	// the current micro-operation size
+	
+	// repeated form of the carry flag
+	DATA_LATCH_CARRY,
+	
+	// the current ALU destination size
 	DATA_SIZE,
 	
-	// the number of bits in the current micro-operation size (used for MULS / MULU / DIVS / DIVU initialization)
+	// the number of bits in the current ALU destination size (used for MULS / MULU / DIVS / DIVU initialization)
 	DATA_NUM_BITS,
 	
 	// 8-bit registers
@@ -165,7 +177,7 @@ typedef enum
 	DATA_LATCH_RM_1,
 	DATA_LATCH_RM_2,
 	DATA_LATCH_RM_HML,
-
+	
 	// Registers from a 3-bit value
 	DATA_REG_IMM_0_8,
 	DATA_REG_IMM_1_8,
@@ -182,8 +194,8 @@ typedef enum
 	// outputs from a demultiplexer hooked up to bits 8-10 of the P0 register
 	DATA_DMX_P0_BITS,
 	
-	// L0, W0, or P0, depending on the instruction size
-	DATA_REG_R0,
+	// L0, W0, or P0, depending on the ALU destination size
+	DATA_REG_R0
 } data_bus_specifier;
 
 typedef struct
@@ -196,8 +208,8 @@ typedef struct
 typedef struct
 {
 	alu_src_control srcs[2];
-	data_bus_specifier dest;
-
+	alu_src_control dest;
+	
 	enum
 	{
 		ALU_OFF,
@@ -211,7 +223,7 @@ typedef struct
 	bool src2_add1;
 	bool src2_add_carry;
 	bool src2_negate;
-	bool src2_and_with_overflow;
+	bool src2_and_with_aux;
 	
 	// Shifter control
 	enum
@@ -227,8 +239,15 @@ typedef struct
 		SHIFTER_SWAP
 	} shifter_mode;
 	
-	// this uses the temp_z latch instead of the X flag
-	bool temp_z_as_extend;
+	enum
+	{
+		LATCH_AUX_NONE,
+		LATCH_AUX_CLEAR,
+		// this uses the aux latch instead of the Z flag
+		LATCH_AUX_ZERO,
+		// this uses the aux latch instead of the X flag
+		LATCH_AUX_CARRY
+	} latch_aux_mode;
 	
 	// Flag control
 	uint8_t flag_write_mask;
@@ -240,16 +259,16 @@ typedef struct
 		// this is for checking if multi-step calculations result in zero
 		FLAG_Z_ACCUM,
 		// this ANDs src2 with src1 and sets the Z flag accordingly
-		FLAG_Z_BIT_TEST,
-		// this uses the temp_z latch instead of the Z flag
-		FLAG_Z_SAVE,
+		FLAG_Z_BIT_TEST
 	} flag_z_mode;
 	
 	enum
 	{
 		FLAG_V_NORMAL,
-		FLAG_V_SHIFTER_CARRY,
 		FLAG_V_CLEAR,
+		// this is for checking if multi-step calculations overflow
+		FLAG_V_ACCUM,
+		FLAG_V_SHIFTER_CARRY
 	} flag_v_mode;
 	
 	// Memory control
@@ -293,7 +312,32 @@ typedef struct
 typedef struct
 {
 	execute_control_word operation;
-	mucode_entry_spec next;
+	
+	bool branch;
+	// Branching
+	enum
+	{
+		COND_LE = 0,		// less than or equal
+		COND_GT,		// greater than
+		COND_LT,		// less than
+		COND_GE,		// greater than or equal
+		COND_U_LE,		// unsigned less than or equal
+		COND_U_GT,		// unsigned greater than
+		COND_C,			// carry set; unsigned less than
+		COND_NC,		// carry clear; unsigned greater than or equal
+		COND_M,			// minus; sign set
+		COND_P,			// plus; sign clear
+		COND_OV,		// overflow; parity even
+		COND_NOV,		// not overflow; parity odd
+		COND_Z,			// equal; zero
+		COND_NZ,		// not equal; nonzero
+		COND_ALWAYS,		// always
+		COND_ALWAYS_CALL,	// always, but used for calls
+		COND_DJNZ		// nonzero, but uses the auxiliary latch
+	} branch_cond;
+	
+	mucode_entry_spec next;			// If branch is taken
+	mucode_entry_spec next_no_branch;	// If branch is not taken
 } mucode_entry;
 
 typedef struct
@@ -314,30 +358,8 @@ typedef struct
 	// repeat_op: if not MU_NONE, is executed after entire instruction - for the repeat instructions
 	mucode_entry_spec repeat_op;
 	
-	// Branch flags
-	bool branch;
+	// Interrupt flag
 	bool interrupt;
-	
-	enum
-	{
-		COND_LE = 0,		// less than or equal
-		COND_GT,		// greater than
-		COND_LT,		// less than
-		COND_GE,		// greater than or equal
-		COND_U_LE,		// unsigned less than or equal
-		COND_U_GT,		// unsigned greater than
-		COND_C,			// carry set; unsigned less than
-		COND_NC,		// carry clear; unsigned greater than or equal
-		COND_M,			// minus; sign set
-		COND_P,			// plus; sign clear
-		COND_OV,		// overflow; parity even
-		COND_NOV,		// not overflow; parity odd
-		COND_Z,			// equal; zero
-		COND_NZ,		// not equal; nonzero
-		COND_ALWAYS,		// always
-		COND_ALWAYS_CALL,	// always, but used for calls
-		COND_DJNZ,		// nonzero, but uses the temp_z latch
-	} branch_cond;
 	
 	enum
 	{
@@ -351,17 +373,13 @@ typedef struct
 		COND_IRQ7
 	} interrupt_cond;
 	
-	enum
-	{
-		BR_MAR,			// JR.S / CR.S / JP rm24 / JEA / CALL rm24 / CEA / DJNZ (address is resolved and in MAR)
-		BR_HML,			// JP hml / JR.L / CALL hml / CR.L (deferred resolution, since the specific type depends on bit 0 of HML)
-		BR_RESTART,		// RST
-		BR_DIV_ZERO,		// Divide by Zero Exception
-		BR_ILLEGAL		// Illegal Instruction Exception
-	} branch_dest_type;
-	
 	// Offset of the second RM operand
 	uint8_t rm2_offset;
+	
+	// Special branch flags
+	bool restart;
+	bool div_zero;
+	bool illegal;
 	
 	// Disable the clock after this instruction
 	bool disable_clk;
