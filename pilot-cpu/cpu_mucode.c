@@ -732,6 +732,11 @@ br_mar_(mucode_entry_spec spec)
 	
 	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
 	
+	if ((spec.reg_select & 0x1f) == COND_ALWAYS_CALL) {
+		prg.next.entry_idx = MU_PUSH_PGC_IND_SP_AUTO;
+		prg.next_no_branch.entry_idx = MU_NONE;
+	}
+	
 	return prg;
 }
 
@@ -778,6 +783,11 @@ br_hml_2cyc_add_pgc_(mucode_entry_spec spec)
 	prg.operation.latch_aux_mode = LATCH_AUX_CLEAR;
 	
 	prg.operation.mem_latch_ctl = MEM_NO_LATCH;
+	
+	if ((spec.reg_select & 0x1f) == COND_ALWAYS_CALL) {
+		prg.next.entry_idx = MU_PUSH_PGC_IND_SP_AUTO;
+		prg.next_no_branch.entry_idx = MU_NONE;
+	}
 	
 	return prg;
 }
